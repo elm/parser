@@ -532,10 +532,10 @@ ignoreWhile predicate =
 
 
 chomp : (Char -> Bool) -> Int -> Int -> Int -> String -> (Int, Int, Int)
-chomp otherChars offset row col source =
+chomp isGood offset row col source =
   let
     newOffset =
-      Prim.isSubChar otherChars offset source
+      Prim.isSubChar isGood offset source
   in
     -- no match
     if newOffset == -1 then
@@ -543,11 +543,11 @@ chomp otherChars offset row col source =
 
     -- newline match
     else if newOffset == -2 then
-      chomp otherChars (offset + 1) (row + 1) 1 source
+      chomp isGood (offset + 1) (row + 1) 1 source
 
     -- normal match
     else
-      chomp otherChars newOffset row (col + 1) source
+      chomp isGood newOffset row (col + 1) source
 
 
 
