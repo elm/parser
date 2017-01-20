@@ -7,7 +7,9 @@
         "src"
     ],
     "exposed-modules": [
-        "Parser"
+        "Parser",
+        "Parser.LanguageKit",
+        "Parser.LowLevel"
     ],
     "dependencies": {
         "elm-lang/core": "5.0.0 <= v < 6.0.0",
