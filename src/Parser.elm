@@ -800,7 +800,7 @@ mapWithSource func (Parser parse) =
       Good a state2 ->
         let
           subString =
-            String.slice offset (state2.offset - offset) source
+            String.slice offset state2.offset source
         in
           Good (func subString a) state2
 
