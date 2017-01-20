@@ -692,23 +692,19 @@ float =
           }
 
       Ok goodOffset ->
-        let
-          diff =
-            goodOffset - offset
-        in
-          case String.toFloat (String.slice offset diff source) of
-            Err _ ->
-              Debug.crash badFloatMsg
+        case String.toFloat (String.slice offset goodOffset source) of
+          Err _ ->
+            Debug.crash badFloatMsg
 
-            Ok n ->
-              Good n
-                { source = source
-                , offset = goodOffset
-                , indent = indent
-                , context = context
-                , row = row
-                , col = col + diff
-                }
+          Ok n ->
+            Good n
+              { source = source
+              , offset = goodOffset
+              , indent = indent
+              , context = context
+              , row = row
+              , col = col + (goodOffset - offset)
+              }
 
 
 floatHelp : Int -> Int -> String -> Result Int Int
