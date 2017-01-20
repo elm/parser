@@ -4,7 +4,7 @@ module Parser exposing
   , int, float, symbol, keyword, end
   , succeed, fail, map, zeroOrMore, oneOf, (|=), (|.), map2, lazy, andThen
   , delayedCommit, delayedCommitMap
-  , mapWithSource, ignore, ignoreWhile, ignoreUntil
+  , mapWithSource, ignore, ignoreWhile, ignoreUntilBefore, ignoreUntilAfter
   , Error, Problem(..), Context, inContext
   )
 
@@ -23,7 +23,7 @@ module Parser exposing
 @docs delayedCommit, delayedCommitMap
 
 # Ignoring Stuff
-@docs mapWithSource, ignore, ignoreWhile, ignoreUntil
+@docs mapWithSource, ignore, ignoreWhile, ignoreUntilBefore, ignoreUntilAfter
 
 # Errors
 @docs Error, Problem, Context, inContext
@@ -764,11 +764,11 @@ end =
 {-| Run a parser, and when it is done, extract all of the source code
 it chomped as well.
 
-This is most useful in combination with the ignore functions:
-[`ignore`](#ignore), [`ignoreWhile`](#ignoreWhile), and
-[`ignoreUntil`](#ignoreUntil). The idea is that you want to allocate
-as little as possible, so you ignore all the intermediate stuff and
-only pull out the final string if you need it.
+This is most useful in combination with the ignore functions, like
+[`ignore`](#ignore) and [`ignoreWhile`](#ignoreWhile). The idea is
+that you want to allocate as little as possible, so you ignore all
+the intermediate stuff and only pull out the final string if you
+need it.
 
 For example, say we want a parser for variables that start lower case,
 but then have numbers, letters, and underscores:
@@ -922,28 +922,56 @@ ignoreWhileHelp predicate source offset indent context row col =
 -- IGNORE UNTIL
 
 
-{-| Ignore characters until you see the given string. So maybe we want
-to parse Elm-style single-line comments:
+{-| Ignore characters until *after* the given string.
+So maybe we want to parse Elm-style single-line comments:
 
     elmComment : Parser ()
     elmComment =
       symbol "--"
-        |. ignoreUntil "\n"
+        |. ignoreUntilAfter "\n"
 
 Or maybe you want to parse JS-style multi-line comments:
 
     jsComment : Parser ()
     jsComment =
       symbol "/*"
-        |. ignoreUntil "*/"
+        |. ignoreUntilAfter "*/"
 
 **Note:** You must take more care when parsing Elm-style multi-line
 comments. Elm can recognize nested comments, but the `jsComment` parser
 cannot.
 -}
-ignoreUntil : String -> Parser ()
-ignoreUntil str =
-  Debug.crash "TODO"
+ignoreUntilAfter : String -> Parser ()
+ignoreUntilAfter str =
+  ignoreUntil False str
+
+
+{-| Ignore characters until *before* the given string.
+-}
+ignoreUntilBefore : String -> Parser ()
+ignoreUntilBefore str =
+  ignoreUntil True str
+
+
+ignoreUntil : Bool -> String -> Parser ()
+ignoreUntil before str =
+  Parser <| \({ source, offset, indent, context, row, col } as state) ->
+    let
+      (newOffset, newRow, newCol) =
+        Prim.findSubString before str offset row col source
+    in
+      if newOffset == -1 then
+        Bad BadIgnore state
+
+      else
+        Good ()
+          { source = source
+          , offset = newOffset
+          , indent = indent
+          , context = context
+          , row = newRow
+          , col = newCol
+          }
 
 
 
@@ -980,17 +1008,17 @@ Notice that the error message knows you are parsing a list right now!
 -}
 inContext : String -> Parser a -> Parser a
 inContext ctx (Parser parse) =
-    Parser <| \({ context, row, col } as initialState) ->
-      let
-        state1 =
-          changeContext (Context row col ctx :: context) initialState
-      in
-        case parse state1 of
-          Good a state2 ->
-            Good a (changeContext context state2)
+  Parser <| \({ context, row, col } as initialState) ->
+    let
+      state1 =
+        changeContext (Context row col ctx :: context) initialState
+    in
+      case parse state1 of
+        Good a state2 ->
+          Good a (changeContext context state2)
 
-          Bad _ _ as step ->
-            step
+        Bad _ _ as step ->
+          step
 
 
 changeContext : List Context -> State -> State
