@@ -1,34 +1,11 @@
 module Parser exposing
   ( Parser
   , run
-  , succeed, fail
-  , (|=), (|.)
-  , andThen, lazy
-  , oneOf
-  , zeroOrMore
-
-  , int
-  , float
-  , symbol
-  , keyword
-  , end
-
-  , ignore
-  , ignoreWhile
-  , ignoreUntil
-
-  , map
-  , mapWithSource
-  , map2
-
-  , delayedCommit
-  , delayedCommitMap
-
-  , Error
-  , Problem(..)
-
-  , inContext
-  , Context
+  , int, float, symbol, keyword, end
+  , succeed, fail, map, zeroOrMore, oneOf, (|=), (|.), map2, lazy, andThen
+  , delayedCommit, delayedCommitMap
+  , mapWithSource, ignore, ignoreWhile, ignoreUntil
+  , Error, Problem(..), Context, inContext
   )
 
 {-|
@@ -36,14 +13,17 @@ module Parser exposing
 # Parsers
 @docs Parser, run
 
-# Common Parsers
-@docs int, float, symbol, keyword
+# Numbers and Keywords
+@docs int, float, symbol, keyword, end
 
 # Combining Parsers
-@docs succeed, (|=), (|.), oneOf
+@docs succeed, fail, map, zeroOrMore, oneOf, (|=), (|.), map2, lazy, andThen
 
-# Parser Primitives
-@docs succeed, fail, map, map2, andThen, lazy
+# Delayed Commits
+@docs delayedCommit, delayedCommitMap
+
+# Ignoring Stuff
+@docs mapWithSource, ignore, ignoreWhile, ignoreUntil
 
 # Errors
 @docs Error, Problem, Context, inContext
@@ -143,6 +123,7 @@ type Problem
   | ExpectingEnd
   | ExpectingSymbol String
   | ExpectingKeyword String
+  | ExpectingVariable
   | Fail String
 
 
@@ -233,6 +214,33 @@ map func (Parser parse) =
         Bad x state2
 
 
+{-| **This function is not used much in practice.** It is nicer to use
+the [parser pipeline][pp] operators [`(|.)`](#|.) and [`(|=)`](#|=)
+instead.
+
+[pp]: https://github.com/elm-tools/parser/blob/master/README.md#parser-pipeline
+
+That said, this function can combine two parsers. Maybe you
+want to parse some spaces followed by an integer:
+
+    spacesThenInt : Parser Int
+    spacesThenInt =
+      map2 (\_ n -> n) spaces int
+
+    spaces : Parser ()
+    spaces =
+      ignoreWhile (\char -> char == ' ')
+
+We can also use `map2` to define `(|.)` and `(|=)` like this:
+
+    (|.) : Parser keep -> Parser ignore -> Parser keep
+    (|.) keepParser ignoreParser =
+      map2 (\keep _ -> keep) keepParser ignoreParser
+
+    (|=) : Parser (a -> b) -> Parser a -> Parser b
+    (|=) funcParser argParser =
+      map2 (\func arg -> func arg) funcParser argParser
+-}
 map2 : (a -> b -> value) -> Parser a -> Parser b -> Parser value
 map2 func (Parser parseA) (Parser parseB) =
   Parser <| \state1 ->
@@ -276,6 +284,10 @@ Read about parser pipelines **[here][]**. They are really nice!
   map2 always keepParser ignoreParser
 
 
+infixl 5 |.
+infixl 5 |=
+
+
 
 -- AND THEN
 
@@ -306,8 +318,8 @@ boolean expressions:
 
     true
     false
-    (true && false)
-    (true && (true && false))
+    (true || false)
+    (true || (true || false))
 
 Notice that a boolean expression might contain *other* boolean expressions.
 That means we will want to define our parser in terms of itself:
@@ -315,7 +327,7 @@ That means we will want to define our parser in terms of itself:
     type Boolean
       = MyTrue
       | MyFalse
-      | MyAnd Boolean Boolean
+      | MyOr Boolean Boolean
 
     boolean : Parser Boolean
     boolean =
@@ -324,12 +336,12 @@ That means we will want to define our parser in terms of itself:
             |. keyword "true"
         , succeed MyFalse
             |. keyword "false"
-        , succeed MyAnd
+        , succeed MyOr
             |. symbol "("
             |. spaces
             |= lazy (\_ -> boolean)
             |. spaces
-            |. symbol "&&"
+            |. symbol "||"
             |. spaces
             |= lazy (\_ -> boolean)
             |. spaces
@@ -345,7 +357,7 @@ only define a value in terms of itself it is behind a function call. So
 `lazy` helps us define these self-referential parsers.
 
 **Note:** In some cases, it may be more natural or efficient to use
-`andThen` for this. It also puts things behind a function.
+`andThen` to hide a self-reference behind a function.
 -}
 lazy : (() -> Parser a) -> Parser a
 lazy thunk =
@@ -368,6 +380,28 @@ remaining parsers.
 The idea is: if you make progress and commit to a parser, you want to
 get error messages from *that path*. If you bactrack and keep trying stuff
 you will get a much less precise error.
+
+So say we are parsing “language terms” that include integers and lists
+of integers:
+
+    term : Parser Expr
+    term =
+      oneOf
+        [ listOf int
+        , int
+        ]
+
+    listOf : Parser a -> Parser (List a)
+    listOf parser =
+      succeed identity
+        |. symbol "["
+        |. spaces
+        ...
+
+When we get to `oneOf`, we first try the `listOf int` parser. If we see a
+`[` we *commit* to that parser. That means if something goes wrong, we do
+not backtrack. Instead the parse fails! If we do not see a `[` we move on
+to the second option and just try the `int` parser.
 -}
 oneOf : List (Parser a) -> Parser a
 oneOf parsers =
@@ -397,6 +431,25 @@ oneOfHelp state problems parsers =
 -- ZERO OR MORE
 
 
+{-| Try to use the parser as many times as possible. Say we want to parse
+`NaN` a bunch of times:
+
+    batman : Parser Int
+    batman =
+      map List.length (zeroOrMore (keyword "NaN"))
+
+    -- run batman "whatever"       == Ok 0
+    -- run batman ""               == Ok 0
+    -- run batman "NaN"            == Ok 1
+    -- run batman "NaNNaN"         == Ok 2
+    -- run batman "NaNNaNNaN"      == Ok 3
+    -- run batman "NaNNaN batman!" == Ok 2
+
+**Note:** If you are trying to parse things like `[1,2,3]` or `{ x = 3 }`
+check out the [`list`](Parser-LanguageKit#list) and
+[`record`](Parser-LanguageKit#record) functions in the
+[`Parser.LanguageKit`](Parser-LanguageKit) module.
+-}
 zeroOrMore : Parser a -> Parser (List a)
 zeroOrMore parser =
   zeroOrMoreHelp parser []
@@ -705,6 +758,54 @@ end =
 
 
 
+-- MAP WITH SOURCE
+
+
+{-| Run a parser, and when it is done, extract all of the source code
+it chomped as well.
+
+This is most useful in combination with the ignore functions:
+[`ignore`](#ignore), [`ignoreWhile`](#ignoreWhile), and
+[`ignoreUntil`](#ignoreUntil). The idea is that you want to allocate
+as little as possible, so you ignore all the intermediate stuff and
+only pull out the final string if you need it.
+
+For example, say we want a parser for variables that start lower case,
+but then have numbers, letters, and underscores:
+
+    variable : Parser String
+    variable =
+      mapWithSource always <|
+        ignore 1 Char.isLower
+          |. ignoreWhile isVarChar
+
+    isVarChar : Char -> Bool
+    isVarChar char =
+      Char.isLower char
+      || Char.isUpper char
+      || Char.isDigit char
+      || char == '_'
+
+**The trick is that we only allocate *one* string here.** Otherwise you
+might allocate the first `Char` then the remaining `String` and then put
+them together with `String.cons`, allocating a second `String`.
+-}
+mapWithSource : (String -> a -> b) -> Parser a -> Parser b
+mapWithSource func (Parser parse) =
+  Parser <| \({source, offset} as state1) ->
+    case parse state1 of
+      Bad x state2 ->
+        Bad x state2
+
+      Good a state2 ->
+        let
+          subString =
+            String.slice offset (state2.offset - offset) source
+        in
+          Good (func subString a) state2
+
+
+
 -- IGNORE
 
 
@@ -719,6 +820,8 @@ spaces, you might say:
     isSpace : Char -> Bool
     isSpace char =
       char == ' '
+
+Works well in combination with [`mapWithSource`](#mapWithSource).
 -}
 ignore : Int -> (Char -> Bool) -> Parser ()
 ignore n predicate =
@@ -780,6 +883,8 @@ does not match anything.
 
 That said, we only commit to a parser if characters have been consumed.
 So if you see no spaces, you only commit if the *next* parser commits.
+
+Works well in combination with [`mapWithSource`](#mapWithSource).
 -}
 ignoreWhile : (Char -> Bool) -> Parser ()
 ignoreWhile predicate =
@@ -817,28 +922,28 @@ ignoreWhileHelp predicate source offset indent context row col =
 -- IGNORE UNTIL
 
 
+{-| Ignore characters until you see the given string. So maybe we want
+to parse Elm-style single-line comments:
+
+    elmComment : Parser ()
+    elmComment =
+      symbol "--"
+        |. ignoreUntil "\n"
+
+Or maybe you want to parse JS-style multi-line comments:
+
+    jsComment : Parser ()
+    jsComment =
+      symbol "/*"
+        |. ignoreUntil "*/"
+
+**Note:** You must take more care when parsing Elm-style multi-line
+comments. Elm can recognize nested comments, but the `jsComment` parser
+cannot.
+-}
 ignoreUntil : String -> Parser ()
 ignoreUntil str =
   Debug.crash "TODO"
-
-
-
--- MAP WITH SOURCE
-
-
-mapWithSource : (String -> a -> b) -> Parser a -> Parser b
-mapWithSource func (Parser parse) =
-  Parser <| \({source, offset} as state1) ->
-    case parse state1 of
-      Bad x state2 ->
-        Bad x state2
-
-      Good a state2 ->
-        let
-          subString =
-            String.slice offset (state2.offset - offset) source
-        in
-          Good (func subString a) state2
 
 
 
