@@ -85,7 +85,7 @@ variable isFirst isOther keywords =
             Bad ExpectingVariable state1
 
           else
-            Good (Debug.log "name" name) state2
+            Good name state2
 
 
 varHelp : (Char -> Bool) -> Int -> Int -> Int -> String -> Int -> List ctx -> State ctx
