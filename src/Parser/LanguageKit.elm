@@ -29,52 +29,43 @@ import ParserPrimitives as Prim
 -- VARIABLES
 
 
-{-| Create a parser for variables. In Elm, we distinguish between upper and
-lower case variables, something like this:
+{-| Create a parser for variables. It takes two `Char` checkers. The
+first one is for the first character. The second one is for all the
+other characters.
+
+In Elm, we distinguish between upper and lower case variables, so we
+can do something like this:
 
     import Char
     import Parser exposing (..)
-    import Parser.LanguageKit exposing (..)
+    import Parser.LanguageKit exposing (variable)
     import Set
-
-    capVar : Parser String
-    capVar =
-      variable
-        { first = Char.isUpper
-        , rest = isVarChar
-        , keywords = keywords
-        }
 
     lowVar : Parser String
     lowVar =
-      variable
-        { first = Char.isLower
-        , rest = isVarChar
-        , keywords = keywords
-        }
+      variable Char.isLower isVarChar keywords
+
+    capVar : Parser String
+    capVar =
+      variable Char.isUpper isVarChar keywords
 
     isVarChar : Char -> Bool
     isVarChar char =
       Char.isLower char
       || Char.isUpper char
-      || Char.isDigit
+      || Char.isDigit char
       || char == '_'
 
     keywords : Set.Set String
     keywords =
       Set.fromList [ "let", "in", "case", "of" ]
 -}
-variable
-  : { first : Char -> Bool
-    , rest : Char -> Bool
-    , keywords : Set String
-    }
-    -> Parser String
-variable { first, rest, keywords } =
-  I.Parser <| \({ source, offset, row, col } as state1) ->
+variable : (Char -> Bool) -> (Char -> Bool) -> Set String -> Parser String
+variable isFirst isOther keywords =
+  I.Parser <| \({ source, offset, indent, context, row, col } as state1) ->
     let
       firstOffset =
-        Prim.isSubChar first offset source
+        Prim.isSubChar isFirst offset source
     in
       if firstOffset == -1 then
         Bad ExpectingVariable state1
@@ -83,9 +74,9 @@ variable { first, rest, keywords } =
         let
           state2 =
             if firstOffset == -2 then
-              varHelp rest firstOffset (row + 1) 1 source state1
+              varHelp isOther (offset + 1) (row + 1) 1 source indent context
             else
-              varHelp rest firstOffset row (col + 1) source state1
+              varHelp isOther firstOffset row (col + 1) source indent context
 
           name =
             String.slice offset state2.offset source
@@ -94,11 +85,11 @@ variable { first, rest, keywords } =
             Bad ExpectingVariable state1
 
           else
-            Good name state2
+            Good (Debug.log "name" name) state2
 
 
-varHelp : (Char -> Bool) -> Int -> Int -> Int -> String -> State ctx -> State ctx
-varHelp isGood offset row col source state =
+varHelp : (Char -> Bool) -> Int -> Int -> Int -> String -> Int -> List ctx -> State ctx
+varHelp isGood offset row col source indent context =
   let
     newOffset =
       Prim.isSubChar isGood offset source
@@ -106,17 +97,17 @@ varHelp isGood offset row col source state =
     if newOffset == -1 then
       { source = source
       , offset = offset
-      , indent = state.indent
-      , context = state.context
+      , indent = indent
+      , context = context
       , row = row
       , col = col
       }
 
     else if newOffset == -2 then
-      varHelp isGood newOffset (row + 1) 1 source state
+      varHelp isGood (offset + 1) (row + 1) 1 source indent context
 
     else
-      varHelp isGood newOffset row (col + 1) source state
+      varHelp isGood newOffset row (col + 1) source indent context
 
 
 
