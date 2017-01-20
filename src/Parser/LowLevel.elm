@@ -20,7 +20,8 @@ module Parser.LowLevel exposing
 
 -}
 
-import Parser.Internal exposing (..)
+import Parser exposing (Parser)
+import Parser.Internal as I exposing (State)
 
 
 
@@ -33,7 +34,7 @@ it starts at 1.
 -}
 getIndentLevel : Parser Int
 getIndentLevel =
-  Parser <| \state -> Good state.indent state
+  I.Parser <| \state -> I.Good state.indent state
 
 
 {-| Run a parser with a given indentation level. So you will likely
@@ -41,17 +42,17 @@ use `getCol` to get the current column, `andThen` give that to
 `withIndentLevel`.
 -}
 withIndentLevel : Int -> Parser a -> Parser a
-withIndentLevel newIndent (Parser parse) =
-  Parser <| \state1 ->
+withIndentLevel newIndent (I.Parser parse) =
+  I.Parser <| \state1 ->
     case parse (changeIndent newIndent state1) of
-      Good a state2 ->
-        Good a (changeIndent state1.indent state2)
+      I.Good a state2 ->
+        I.Good a (changeIndent state1.indent state2)
 
-      Bad x state2 ->
-        Bad x (changeIndent state1.indent state2)
+      I.Bad x state2 ->
+        I.Bad x (changeIndent state1.indent state2)
 
 
-changeIndent : Int -> State -> State
+changeIndent : Int -> State ctx -> State ctx
 changeIndent newIndent { source, offset, context, row, col } =
   { source = source
   , offset = offset
@@ -75,7 +76,7 @@ within the string you are parsing.
 -}
 getPosition : Parser (Int, Int)
 getPosition =
-  Parser <| \state -> Good (state.row, state.col) state
+  I.Parser <| \state -> I.Good (state.row, state.col) state
 
 
 {-| The `getRow` parser succeeds with your current row within
@@ -83,7 +84,7 @@ the string you are parsing.
 -}
 getRow : Parser Int
 getRow =
-  Parser <| \state -> Good state.row state
+  I.Parser <| \state -> I.Good state.row state
 
 
 {-| The `getCol` parser succeeds with your current column within
@@ -91,7 +92,7 @@ the string you are parsing.
 -}
 getCol : Parser Int
 getCol =
-  Parser <| \state -> Good state.col state
+  I.Parser <| \state -> I.Good state.col state
 
 
 {-| Editors think of code as a grid, but behind the scenes it is just
@@ -104,7 +105,7 @@ words. This means you can read 4 characters, but your offset will move by 8.
 -}
 getOffset : Parser Int
 getOffset =
-  Parser <| \state -> Good state.offset state
+  I.Parser <| \state -> I.Good state.offset state
 
 
 {-| Get the entire string you are parsing right now. Paired with
@@ -113,5 +114,5 @@ with very little intermediate allocation.
 -}
 getSource : Parser String
 getSource =
-  Parser <| \state -> Good state.source state
+  I.Parser <| \state -> I.Good state.source state
 
