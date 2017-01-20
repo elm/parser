@@ -1,7 +1,7 @@
 module Parser.LanguageKit exposing
   ( variable
-  , list, record, tuple, sequence, Sep(..)
-  , whitespace, LineComment, MultiComment
+  , list, record, tuple, sequence, Trailing(..)
+  , whitespace, LineComment(..), MultiComment(..)
   )
 
 
@@ -11,7 +11,7 @@ module Parser.LanguageKit exposing
 @docs variable
 
 # Lists, records, and that sort of thing
-@docs list, record, tuple, sequence, Sep
+@docs list, record, tuple, sequence, Trailing
 
 # Whitespace
 @docs whitespace, LineComment, MultiComment
@@ -217,7 +217,7 @@ tuple spaces item =
 details however you need. Say you want to parse C-style code blocks:
 
     import Parser exposing (Parser)
-    import Parser.LanguageKit as Parser exposing (Sep(..))
+    import Parser.LanguageKit as Parser exposing (Trailing(..))
 
     block : Parser (List Stmt)
     block =
@@ -244,7 +244,7 @@ sequence
     , end : String
     , spaces : Parser ()
     , item : Parser a
-    , trailing : Sep
+    , trailing : Trailing
     }
   -> Parser (List a)
 sequence { start, end, spaces, item, separator, trailing } =
@@ -253,11 +253,11 @@ sequence { start, end, spaces, item, separator, trailing } =
     |- sequenceEnd end spaces item separator trailing
 
 
-{-| What is the deal with trailing commas? Are they `Forbidden`?
+{-| What’s the deal with trailing commas? Are they `Forbidden`?
 Are they `Optional`? Are they `Mandatory`? Welcome to [shapes
 club](http://poorlydrawnlines.com/comic/shapes-club/)!
 -}
-type Sep = Forbidden | Optional | Mandatory
+type Trailing = Forbidden | Optional | Mandatory
 
 
 ignore : Parser ignore -> Parser keep -> Parser keep
@@ -275,7 +275,7 @@ revAlways _ keep =
   keep
 
 
-sequenceEnd : String -> Parser () -> Parser a -> String -> Sep -> Parser (List a)
+sequenceEnd : String -> Parser () -> Parser a -> String -> Trailing -> Parser (List a)
 sequenceEnd end spaces parseItem sep trailing =
   let
     chompRest item =
@@ -364,7 +364,7 @@ other things. Here are some examples:
       whitespace
         { allowTabs = False
         , lineComment = LineComment "--"
-        , multiComment = NestableMultiComment "{-" "-}"
+        , multiComment = NestableComment "{-" "-}"
         }
 
     js : Parser ()
@@ -372,7 +372,7 @@ other things. Here are some examples:
       whitespace
         { allowTabs = True
         , lineComment = LineComment "//"
-        , multiComment = UnestableMultiComment "/*" "*/"
+        , multiComment = UnnestableComment "/*" "*/"
         }
 
 If you need further customization, please open an issue describing your
@@ -400,7 +400,7 @@ whitespace { allowTabs, lineComment, multiComment } =
 
         LineComment start ->
           [ symbol start
-              |. ignoreUntil "\n"
+              |. ignoreUntilAfter "\n"
           ]
 
     multiParser =
@@ -408,20 +408,22 @@ whitespace { allowTabs, lineComment, multiComment } =
         NoMultiComment ->
           []
 
-        UnnestableMultiComment start end ->
+        UnnestableComment start end ->
           [ symbol start
-              |. ignoreUntil end
+              |. ignoreUntilAfter end
           ]
 
-        NestableMultiComment start end ->
+        NestableComment start end ->
           [ nestableComment start end
           ]
   in
-    many <| oneOf <|
-      ignoreWhile isSpace
-      :: tabParser
-      ++ lineParser
-      ++ multiParser
+    whitespaceHelp <|
+      oneOf (tabParser ++ lineParser ++ multiParser)
+
+
+chompSpaces : Parser ()
+chompSpaces =
+  ignoreWhile isSpace
 
 
 isSpace : Char -> Bool
@@ -434,11 +436,10 @@ isTab char =
   char == '\t'
 
 
-many : Parser a -> Parser ()
-many parser =
-  oneOf [ andThen (\_ -> many parser) parser, succeed () ]
-
-
+whitespaceHelp : Parser a -> Parser ()
+whitespaceHelp parser =
+  ignore chompSpaces <|
+    oneOf [ andThen (\_ -> whitespaceHelp parser) parser, succeed () ]
 
 
 {-| Are line comments allowed? If so, what symbol do they start with?
@@ -454,9 +455,9 @@ type LineComment = NoLineComment | LineComment String
 {-| Are multi-line comments allowed? If so, what symbols do they start
 and end with?
 
-    NestableMultiComment "{-" "-}"    -- Elm
-    UnnestableMultiComment "/*" "*/"  -- JS
-    NoMultiComment                    -- Python
+    NestableComment "{-" "-}"    -- Elm
+    UnnestableComment "/*" "*/"  -- JS
+    NoMultiComment               -- Python
 
 In Elm, you can nest multi-line comments. In C-like languages, like JS,
 this is not allowed. As soon as you see a `*/` the comment is over no
@@ -464,8 +465,8 @@ matter what.
 -}
 type MultiComment
   = NoMultiComment
-  | NestableMultiComment String String
-  | UnnestableMultiComment String String
+  | NestableComment String String
+  | UnnestableComment String String
 
 
 nestableComment : String -> String -> Parser ()
@@ -480,7 +481,7 @@ nestableComment start end =
     ( Just (startChar, _), Just (endChar, _) ) ->
       let
         isNotRelevant char =
-          char == startChar || char == endChar
+          char /= startChar && char /= endChar
       in
         symbol start
           |. nestableCommentHelp isNotRelevant start end 1
