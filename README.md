@@ -39,7 +39,7 @@ point =
 
 spaces : Parser ()
 spaces =
-  ingoreWhile (\char -> char == ' ')
+  ignoreWhile (\char -> char == ' ')
 ```
 
 All the interesting stuff is happening in `point`. It uses two operators:
