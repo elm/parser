@@ -14,7 +14,7 @@ This is achieved with a couple concepts that I have not seen in any other parser
 To parse a 2D point like `( 3, 4 )`, you might create a `point` parser like this:
 
 ```elm
-import Parser exposing (Parser, (|.), (|=), succeed, string, float, ignoreWhile)
+import Parser exposing (Parser, (|.), (|=), succeed, symbol, float, ignoreWhile)
 
 
 type alias Point =
@@ -26,15 +26,15 @@ type alias Point =
 point : Parser Point
 point =
   succeed Point
-    |. string "("
+    |. symbol "("
     |. spaces
     |= float
     |. spaces
-    |. string ","
+    |. symbol ","
     |. spaces
     |= float
     |. spaces
-    |. string ")"
+    |. symbol ")"
 
 
 spaces : Parser ()
@@ -109,11 +109,11 @@ then use `intListHelp` to start chomping other list entries.
 intList : Parser (List Int)
 intList =
   succeed identity
-    |. string "["
+    |. symbol "["
     |. spaces
     |= andThen (\n -> intListHelp [n]) int
     |. spaces
-    |. string "]"
+    |. symbol "]"
 
 
 {-| `intListHelp` checks if there is a `nextInt`. If so, it
@@ -138,7 +138,7 @@ badNextInt : Parser Int
 badNextInt =
   succeed identity
     |. spaces
-    |. string ","
+    |. symbol ","
     |. spaces
     |= int
 
@@ -147,7 +147,7 @@ nextInt : Parser Int
 nextInt =
   delayedCommit spaces <|
     succeed identity
-      |. string ","
+      |. symbol ","
       |. spaces
       |= int
 ```
