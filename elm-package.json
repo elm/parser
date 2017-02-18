@@ -1,5 +1,5 @@
 {
-    "version": "1.0.1",
+    "version": "1.0.2",
     "summary": "a parsing library, focused on simplicity and great error messages",
     "repository": "https://github.com/elm-tools/parser.git",
     "license": "BSD-3-Clause",
