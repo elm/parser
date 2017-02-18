@@ -709,13 +709,23 @@ float =
 
 floatHelp : Int -> Int -> String -> Result Int Int
 floatHelp offset zeroOffset source =
-  if zeroOffset == -1 then
-    Internal.chompDotAndExp
-      (Internal.chomp Char.isDigit offset source)
-      source
+  if zeroOffset >= 0 then
+    Internal.chompDotAndExp zeroOffset source
 
   else
-    Internal.chompDotAndExp zeroOffset source
+    let
+      dotOffset =
+        Internal.chomp Char.isDigit offset source
+
+      result =
+        Internal.chompDotAndExp dotOffset source
+    in
+      case result of
+        Err _ ->
+          result
+
+        Ok n ->
+          if n == offset then Err n else result
 
 
 badFloatMsg : String
