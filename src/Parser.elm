@@ -593,23 +593,19 @@ int =
           }
 
       Ok goodOffset ->
-        let
-          diff =
-            goodOffset - offset
-        in
-          case String.toInt (String.slice offset diff source) of
-            Err _ ->
-              Debug.crash badIntMsg
+        case String.toInt (String.slice offset goodOffset source) of
+          Err _ ->
+            Debug.crash badIntMsg
 
-            Ok n ->
-              Good n
-                { source = source
-                , offset = goodOffset
-                , indent = indent
-                , context = context
-                , row = row
-                , col = col + diff
-                }
+          Ok n ->
+            Good n
+              { source = source
+              , offset = goodOffset
+              , indent = indent
+              , context = context
+              , row = row
+              , col = col + (goodOffset - offset)
+              }
 
 
 intHelp : Int -> Int -> String -> Result Int Int
