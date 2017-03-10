@@ -114,12 +114,18 @@ type alias Error =
 
 
 {-| The particular problem you ran into.
+
+The tricky one here is `BadRepeat`. That means that you are running
+`zeroOrMore parser` where `parser` can succeed without consuming any
+input. That means it will just loop forever, consuming no input until
+the program crashes.
 -}
 type Problem
   = BadOneOf (List Problem)
   | BadIgnore
   | BadInt
   | BadFloat
+  | BadRepeat
   | ExpectingEnd
   | ExpectingSymbol String
   | ExpectingKeyword String
@@ -451,17 +457,23 @@ check out the [`list`](Parser-LanguageKit#list) and
 [`Parser.LanguageKit`](Parser-LanguageKit) module.
 -}
 zeroOrMore : Parser a -> Parser (List a)
-zeroOrMore parser =
-  zeroOrMoreHelp parser []
+zeroOrMore (Parser parse) =
+  let
+    zeroOrMoreHelp revList state1 =
+      case parse state1 of
+        Good a state2 ->
+          if state1.row == state2.row && state1.col == state2.col then
+            Bad BadRepeat state2
+          else
+            zeroOrMoreHelp (a :: revList) state2
 
-
-zeroOrMoreHelp : Parser a -> List a -> Parser (List a)
-zeroOrMoreHelp parser revValues =
-  oneOf
-    [ parser
-        |> andThen (\value -> zeroOrMoreHelp parser (value :: revValues))
-    , succeed (List.reverse revValues)
-    ]
+        Bad x state2 ->
+          if state1.row == state2.row && state1.col == state2.col then
+            Good (List.reverse revList) state1
+          else
+            Bad x state2
+  in
+    Parser (zeroOrMoreHelp [])
 
 
 
