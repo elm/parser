@@ -462,22 +462,48 @@ check out the [`list`](Parser-LanguageKit#list) and
 -}
 repeat : Count -> Parser a -> Parser (List a)
 repeat count (Parser parse) =
-  let
-    repeatHelp revList state1 =
-      case parse state1 of
-        Good a state2 ->
-          if state1.row == state2.row && state1.col == state2.col then
-            Bad BadRepeat state2
-          else
-            repeatHelp (a :: revList) state2
+  case count of
+    Exactly n ->
+      Parser <| \state ->
+        repeatExactly n parse [] state
 
-        Bad x state2 ->
-          if state1.row == state2.row && state1.col == state2.col then
-            Good (List.reverse revList) state1
-          else
-            Bad x state2
-  in
-    Parser (repeatHelp [])
+    AtLeast n ->
+      Parser <| \state ->
+        repeatAtLeast n parse [] state
+
+
+repeatExactly : Int -> (State -> Step a) -> List a -> State -> Step (List a)
+repeatExactly n parse revList state1 =
+  if n <= 0 then
+    Good (List.reverse revList) state1
+
+  else
+    case parse state1 of
+      Good a state2 ->
+        if state1.row == state2.row && state1.col == state2.col then
+          Bad BadRepeat state2
+        else
+          repeatExactly (n - 1) parse (a :: revList) state2
+
+      Bad x state2 ->
+        Bad x state2
+
+
+repeatAtLeast : Int -> (State -> Step a) -> List a -> State -> Step (List a)
+repeatAtLeast n parse revList state1 =
+  case parse state1 of
+    Good a state2 ->
+      if state1.row == state2.row && state1.col == state2.col then
+        Bad BadRepeat state2
+      else
+        repeatAtLeast (n - 1) parse (a :: revList) state2
+
+    Bad x state2 ->
+      if state1.row == state2.row && state1.col == state2.col && n <= 0 then
+        Good (List.reverse revList) state1
+
+      else
+        Bad x state2
 
 
 
