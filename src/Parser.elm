@@ -2,9 +2,10 @@ module Parser exposing
   ( Parser
   , run
   , int, float, symbol, keyword, end
-  , succeed, fail, map, zeroOrMore, oneOf, (|=), (|.), map2, lazy, andThen
+  , Count(..), zeroOrMore, oneOrMore, keep, ignore, repeat
+  , succeed, fail, map, oneOf, (|=), (|.), map2, lazy, andThen
   , delayedCommit, delayedCommitMap
-  , mapWithSource, ignore, ignoreWhile, ignoreUntilBefore, ignoreUntilAfter
+  , source, sourceMap, ignoreUntil
   , Error, Problem(..), Context, inContext
   )
 
@@ -16,14 +17,17 @@ module Parser exposing
 # Numbers and Keywords
 @docs int, float, symbol, keyword, end
 
+# Repeat Parsers
+@docs Count, zeroOrMore, oneOrMore, keep, ignore, repeat
+
 # Combining Parsers
-@docs succeed, fail, map, zeroOrMore, oneOf, (|=), (|.), map2, lazy, andThen
+@docs succeed, fail, map, oneOf, (|=), (|.), map2, lazy, andThen
 
 # Delayed Commits
 @docs delayedCommit, delayedCommitMap
 
-# Ignoring Stuff
-@docs mapWithSource, ignore, ignoreWhile, ignoreUntilBefore, ignoreUntilAfter
+# Efficiency Tricks
+@docs source, sourceMap, ignoreUntil
 
 # Errors
 @docs Error, Problem, Context, inContext
@@ -122,7 +126,6 @@ the program crashes.
 -}
 type Problem
   = BadOneOf (List Problem)
-  | BadIgnore
   | BadInt
   | BadFloat
   | BadRepeat
@@ -130,6 +133,7 @@ type Problem
   | ExpectingSymbol String
   | ExpectingKeyword String
   | ExpectingVariable
+  | ExpectingClosing String
   | Fail String
 
 
@@ -235,7 +239,7 @@ want to parse some spaces followed by an integer:
 
     spaces : Parser ()
     spaces =
-      ignoreWhile (\char -> char == ' ')
+      ignore zeroOrMore (\char -> char == ' ')
 
 We can also use `map2` to define `(|.)` and `(|=)` like this:
 
@@ -356,7 +360,7 @@ That means we will want to define our parser in terms of itself:
 
     spaces : Parser ()
     spaces =
-      ignoreWhile (\char -> char == ' ')
+      ignore zeroOrMore (\char -> char == ' ')
 
 **Notice that `boolean` uses `boolean` in its definition!** In Elm, you can
 only define a value in terms of itself it is behind a function call. So
@@ -434,7 +438,7 @@ oneOfHelp state problems parsers =
 
 
 
--- ZERO OR MORE
+-- REPEAT
 
 
 {-| Try to use the parser as many times as possible. Say we want to parse
@@ -442,7 +446,7 @@ oneOfHelp state problems parsers =
 
     batman : Parser Int
     batman =
-      map List.length (zeroOrMore (keyword "NaN"))
+      map List.length (repeat zeroOrMore (keyword "NaN"))
 
     -- run batman "whatever"       == Ok 0
     -- run batman ""               == Ok 0
@@ -456,16 +460,16 @@ check out the [`list`](Parser-LanguageKit#list) and
 [`record`](Parser-LanguageKit#record) functions in the
 [`Parser.LanguageKit`](Parser-LanguageKit) module.
 -}
-zeroOrMore : Parser a -> Parser (List a)
-zeroOrMore (Parser parse) =
+repeat : Count -> Parser a -> Parser (List a)
+repeat count (Parser parse) =
   let
-    zeroOrMoreHelp revList state1 =
+    repeatHelp revList state1 =
       case parse state1 of
         Good a state2 ->
           if state1.row == state2.row && state1.col == state2.col then
             Bad BadRepeat state2
           else
-            zeroOrMoreHelp (a :: revList) state2
+            repeatHelp (a :: revList) state2
 
         Bad x state2 ->
           if state1.row == state2.row && state1.col == state2.col then
@@ -473,7 +477,7 @@ zeroOrMore (Parser parse) =
           else
             Bad x state2
   in
-    Parser (zeroOrMoreHelp [])
+    Parser (repeatHelp [])
 
 
 
@@ -772,40 +776,60 @@ end =
 
 
 
--- MAP WITH SOURCE
+-- SOURCE
 
 
-{-| Run a parser, and when it is done, extract all of the source code
-it chomped as well.
+{-| Run a parser, but return the underlying source code that actually
+got parsed.
 
-This is most useful in combination with the ignore functions, like
-[`ignore`](#ignore) and [`ignoreWhile`](#ignoreWhile). The idea is
-that you want to allocate as little as possible, so you ignore all
-the intermediate stuff and only pull out the final string if you
-need it.
+    -- run (source (ignore oneOrMore Char.isLower)) "abc" == Ok "abc"
+    -- keep count isOk = source (ignore count isOk)
 
-For example, say we want a parser for variables that start lower case,
-but then have numbers, letters, and underscores:
+This becomes a useful optimization when you need to [`keep`](#keep)
+something very specific. For example, say we want to parse capitalized
+words:
+
+    import Char
 
     variable : Parser String
     variable =
-      mapWithSource always <|
-        ignore 1 Char.isLower
-          |. ignoreWhile isVarChar
+      succeed (++)
+        |= keep (Exactly 1) Char.isUpper
+        |= keep zeroOrMore Char.isLower
 
-    isVarChar : Char -> Bool
-    isVarChar char =
-      Char.isLower char
-      || Char.isUpper char
-      || Char.isDigit char
-      || char == '_'
+In this case, each `keep` allocates a string. Then we use `(++)` to create the
+final string. That means *three* strings are allocated.
 
-**The trick is that we only allocate *one* string here.** Otherwise you
-might allocate the first `Char` then the remaining `String` and then put
-them together with `String.cons`, allocating a second `String`.
+In contrast, using `source` with `ignore` lets you grab the final string
+directly. It tracks where the parser starts and ends, so it can use
+`String.slice` to grab that part directly.
+
+    variable : Parser String
+    variable =
+      source <|
+        ignore (Exactly 1) Char.isUpper
+          |. ignore zeroOrMore Char.isLower
+
+This version only allocates *one* string.
 -}
-mapWithSource : (String -> a -> b) -> Parser a -> Parser b
-mapWithSource func (Parser parse) =
+source : Parser a -> Parser String
+source parser =
+  sourceMap always parser
+
+
+{-| Like `source`, but it allows you to combine the source string
+with the value that is produced by the parser. So maybe you want
+a float, but you also want to know exactly how it looked.
+
+    number : Parser (String, Float)
+    number =
+      sourceMap (,) float
+
+    -- run number "100" == Ok ("100", 100)
+    -- run number "1e2" == Ok ("1e2", 100)
+-}
+sourceMap : (String -> a -> b) -> Parser a -> Parser b
+sourceMap func (Parser parse) =
   Parser <| \({source, offset} as state1) ->
     case parse state1 of
       Bad x state2 ->
@@ -820,31 +844,88 @@ mapWithSource func (Parser parse) =
 
 
 
--- IGNORE
+-- REPEAT
 
 
-{-| Ignore exactly `N` characters. If you want to ignore one or more
+{-| How many characters to [`keep`](#keep) or [`ignore`](#ignore).
+-}
+type Count = AtLeast Int | Exactly Int
+
+
+{-| A simple alias for `AtLeast 0` so your code reads nicer:
+
+    import Char
+
+    spaces : Parser String
+    spaces =
+      keep zeroOrMore (\c -> c == ' ')
+
+    -- same as: keep (AtLeast 0) (\c -> c == ' ')
+-}
+zeroOrMore : Count
+zeroOrMore =
+  AtLeast 0
+
+
+{-| A simple alias for `AtLeast 1` so your code reads nicer:
+
+    import Char
+
+    lows : Parser String
+    lows =
+      keep oneOrMore Char.isLower
+
+    -- same as: keep (AtLeast 1) Char.isLower
+-}
+oneOrMore : Count
+oneOrMore =
+  AtLeast 1
+
+
+{-| Keep some characters. If you want a capital letter followed by
+zero or more lower case letters, you could say:
+
+    import Char
+
+    capitalized : Parser String
+    capitalized =
+      succeed (++)
+        |= keep (Exactly 1) Char.isUpper
+        |= keep zeroOrMore  Char.isLower
+
+    -- good: Cat, Tom, Sally
+    -- bad: cat, tom, TOM, tOm
+
+**Note:** Check out [`source`](#source) for a more efficient
+way to grab the underlying source of a complex parser.
+-}
+keep : Count -> (Char -> Bool) -> Parser String
+keep count predicate =
+  source (ignore count predicate)
+
+
+{-| Ignore some characters. If you want to ignore one or more
 spaces, you might say:
 
-    oneOrMoreSpaces : Parser ()
-    oneOrMoreSpaces =
-      ignore 1 isSpace
-        |. ignoreWhile isSpace
+    spaces : Parser ()
+    spaces =
+      ignore oneOrMore (\c -> c == ' ')
 
-    isSpace : Char -> Bool
-    isSpace char =
-      char == ' '
-
-Works well in combination with [`mapWithSource`](#mapWithSource).
 -}
-ignore : Int -> (Char -> Bool) -> Parser ()
-ignore n predicate =
-  Parser <| \{ source, offset, indent, context, row, col } ->
-    ignoreHelp n predicate source offset indent context row col
+ignore : Count -> (Char -> Bool) -> Parser ()
+ignore count predicate =
+  case count of
+    Exactly n ->
+      Parser <| \{ source, offset, indent, context, row, col } ->
+        ignoreExactly n predicate source offset indent context row col
+
+    AtLeast n ->
+      Parser <| \{ source, offset, indent, context, row, col } ->
+        ignoreAtLeast n predicate source offset indent context row col
 
 
-ignoreHelp : Int -> (Char -> Bool) -> String -> Int -> Int -> List Context -> Int -> Int -> Step ()
-ignoreHelp n predicate source offset indent context row col =
+ignoreExactly : Int -> (Char -> Bool) -> String -> Int -> Int -> List Context -> Int -> Int -> Step ()
+ignoreExactly n predicate source offset indent context row col =
   if n <= 0 then
     Good ()
       { source = source
@@ -861,7 +942,7 @@ ignoreHelp n predicate source offset indent context row col =
         Prim.isSubChar predicate offset source
     in
       if newOffset == -1 then
-        Bad BadIgnore
+        Bad BadRepeat
           { source = source
           , offset = offset
           , indent = indent
@@ -871,65 +952,39 @@ ignoreHelp n predicate source offset indent context row col =
           }
 
       else if newOffset == -2 then
-        ignoreHelp (n - 1) predicate source (offset + 1) indent context (row + 1) 1
+        ignoreExactly (n - 1) predicate source (offset + 1) indent context (row + 1) 1
 
       else
-        ignoreHelp (n - 1) predicate source newOffset indent context row (col + 1)
+        ignoreExactly (n - 1) predicate source newOffset indent context row (col + 1)
 
 
-
--- IGNORE WHILE
-
-
-{-| Ignore zero or more characters. A common use is to ignore spaces:
-
-    spaces : Parser ()
-    spaces =
-      ignoreWhile isSpace
-
-    isSpace : Char -> Bool
-    isSpace char =
-      char == ' '
-
-Note that this parses **zero** or more characters, so this parser will
-always succeed. So our `spaces` parser will succeed even if `isSpace`
-does not match anything.
-
-That said, we only commit to a parser if characters have been consumed.
-So if you see no spaces, you only commit if the *next* parser commits.
-
-Works well in combination with [`mapWithSource`](#mapWithSource).
--}
-ignoreWhile : (Char -> Bool) -> Parser ()
-ignoreWhile predicate =
-  Parser <| \{ source, offset, indent, context, row, col } ->
-    ignoreWhileHelp predicate source offset indent context row col
-
-
-ignoreWhileHelp : (Char -> Bool) -> String -> Int -> Int -> List Context -> Int -> Int -> Step ()
-ignoreWhileHelp predicate source offset indent context row col =
+ignoreAtLeast : Int -> (Char -> Bool) -> String -> Int -> Int -> List Context -> Int -> Int -> Step ()
+ignoreAtLeast n predicate source offset indent context row col =
   let
     newOffset =
       Prim.isSubChar predicate offset source
   in
     -- no match
     if newOffset == -1 then
-      Good ()
-        { source = source
-        , offset = offset
-        , indent = indent
-        , context = context
-        , row = row
-        , col = col
-        }
+      let
+        state =
+          { source = source
+          , offset = offset
+          , indent = indent
+          , context = context
+          , row = row
+          , col = col
+          }
+      in
+        if n <= 0 then Good () state else Bad BadRepeat state
 
     -- matched a newline
     else if newOffset == -2 then
-      ignoreWhileHelp predicate source (offset + 1) indent context (row + 1) 1
+      ignoreAtLeast (n - 1) predicate source (offset + 1) indent context (row + 1) 1
 
     -- normal match
     else
-      ignoreWhileHelp predicate source newOffset indent context row (col + 1)
+      ignoreAtLeast (n - 1) predicate source newOffset indent context row (col + 1)
 
 
 
@@ -942,40 +997,29 @@ So maybe we want to parse Elm-style single-line comments:
     elmComment : Parser ()
     elmComment =
       symbol "--"
-        |. ignoreUntilAfter "\n"
+        |. ignoreUntil "\n"
 
 Or maybe you want to parse JS-style multi-line comments:
 
     jsComment : Parser ()
     jsComment =
       symbol "/*"
-        |. ignoreUntilAfter "*/"
+        |. ignoreUntil "*/"
 
 **Note:** You must take more care when parsing Elm-style multi-line
 comments. Elm can recognize nested comments, but the `jsComment` parser
-cannot.
+cannot. See [`Parser.LanguageKit.whitespace`](Parser-LanguageKit#whitespace)
+for help with this.
 -}
-ignoreUntilAfter : String -> Parser ()
-ignoreUntilAfter str =
-  ignoreUntil False str
-
-
-{-| Ignore characters until *before* the given string.
--}
-ignoreUntilBefore : String -> Parser ()
-ignoreUntilBefore str =
-  ignoreUntil True str
-
-
-ignoreUntil : Bool -> String -> Parser ()
-ignoreUntil before str =
+ignoreUntil : String -> Parser ()
+ignoreUntil str =
   Parser <| \({ source, offset, indent, context, row, col } as state) ->
     let
       (newOffset, newRow, newCol) =
-        Prim.findSubString before str offset row col source
+        Prim.findSubString False str offset row col source
     in
       if newOffset == -1 then
-        Bad BadIgnore state
+        Bad (ExpectingClosing str) state
 
       else
         Good ()

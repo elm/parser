@@ -127,7 +127,7 @@ to parse a list of integers, you would say:
 
     spaces : Parser ()
     spaces =
-      Parser.ignoreWhile (\char -> char == ' ')
+      Parser.ignore zeroOrMore (\char -> char == ' ')
 
     -- run intList "[]"            == Ok []
     -- run intList "[ ]"           == Ok []
@@ -155,7 +155,7 @@ list spaces item =
 {-| Help parse records like `{ a = 2, b = 2 }`. You provide
 a parser for the spaces and for the list items, you might say:
 
-    import Parser exposing ( Parser, (|.), (|=) )
+    import Parser exposing ( Parser, (|.), (|=), zeroOrMore )
     import Parser.LanguageKit as Parser
 
     record : Parser (List (String, Int))
@@ -173,7 +173,7 @@ a parser for the spaces and for the list items, you might say:
 
     spaces : Parser ()
     spaces =
-      Parser.ignoreWhile (\char -> char == ' ')
+      Parser.ignore zeroOrMore (\char -> char == ' ')
 
     -- run record "{}"               == Ok []
     -- run record "{ }"              == Ok []
@@ -389,7 +389,7 @@ whitespace { allowTabs, lineComment, multiComment } =
   let
     tabParser =
       if allowTabs then
-        [ ignoreWhile isTab ]
+        [ Parser.ignore zeroOrMore isTab ]
       else
         []
 
@@ -400,7 +400,7 @@ whitespace { allowTabs, lineComment, multiComment } =
 
         LineComment start ->
           [ symbol start
-              |. ignoreUntilAfter "\n"
+              |. ignoreUntil "\n"
           ]
 
     multiParser =
@@ -410,7 +410,7 @@ whitespace { allowTabs, lineComment, multiComment } =
 
         UnnestableComment start end ->
           [ symbol start
-              |. ignoreUntilAfter end
+              |. ignoreUntil end
           ]
 
         NestableComment start end ->
@@ -423,7 +423,7 @@ whitespace { allowTabs, lineComment, multiComment } =
 
 chompSpaces : Parser ()
 chompSpaces =
-  ignoreWhile isSpace
+  Parser.ignore zeroOrMore isSpace
 
 
 isSpace : Char -> Bool
@@ -490,7 +490,7 @@ nestableComment start end =
 nestableCommentHelp : (Char -> Bool) -> String -> String -> Int -> Parser ()
 nestableCommentHelp isNotRelevant start end nestLevel =
   lazy <| \_ ->
-    ignore (ignoreWhile isNotRelevant) <|
+    ignore (Parser.ignore zeroOrMore isNotRelevant) <|
       oneOf
         [ ignore (symbol end) <|
             if nestLevel == 1 then
@@ -499,7 +499,7 @@ nestableCommentHelp isNotRelevant start end nestLevel =
               nestableCommentHelp isNotRelevant start end (nestLevel - 1)
         , ignore (symbol start) <|
             nestableCommentHelp isNotRelevant start end (nestLevel + 1)
-        , ignore (Parser.ignore 1 isChar) <|
+        , ignore (Parser.ignore (Exactly 1) isChar) <|
             nestableCommentHelp isNotRelevant start end nestLevel
         ]
 
