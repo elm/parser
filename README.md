@@ -14,7 +14,7 @@ This is achieved with a couple concepts that I have not seen in any other parser
 To parse a 2D point like `( 3, 4 )`, you might create a `point` parser like this:
 
 ```elm
-import Parser exposing (Parser, (|.), (|=), succeed, symbol, float, ignoreWhile)
+import Parser exposing (Parser, (|.), (|=), succeed, symbol, float, ignore, zeroOrMore)
 
 
 type alias Point =
@@ -39,7 +39,7 @@ point =
 
 spaces : Parser ()
 spaces =
-  ignoreWhile (\char -> char == ' ')
+  ignore zeroOrMore (\c -> c == ' ')
 ```
 
 All the interesting stuff is happening in `point`. It uses two operators:
