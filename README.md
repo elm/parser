@@ -1,6 +1,8 @@
-# Parser + Nice Error Messages
+# Parser
 
-Goals:
+Regular expressions are quite confusing and difficult to use. This library provides a coherent alternative that handles more cases and produces clearer code.
+
+The particular goals of this library are:
 
   - Make writing parsers as simple and fun as possible.
   - Produce excellent error messages.
