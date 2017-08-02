@@ -1,7 +1,7 @@
 {
     "type": "package",
     "name": "elm-lang/parser",
-    "version": "2.0.1",
+    "version": "1.0.0",
     "summary": "a parsing library, focused on simplicity and great error messages",
     "license": "BSD-3-Clause",
     "source-directories": [
@@ -13,10 +13,10 @@
         "Parser.LowLevel"
     ],
     "dependencies": {
-        "elm-lang/core": "5.1.0 <= v < 6.0.0",
+        "elm-lang/core": "6.0.0 <= v < 7.0.0",
         "elm-lang/parser-primitives": "1.0.0 <= v < 2.0.0"
     },
     "test-dependencies": {
     },
-    "elm-version": "0.18.0 <= v < 0.19.0"
+    "elm-version": "0.19.0 <= v < 0.20.0"
 }
