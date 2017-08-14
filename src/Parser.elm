@@ -636,10 +636,10 @@ int =
 
       Ok goodOffset ->
         case String.toInt (String.slice offset goodOffset source) of
-          Err _ ->
+          Nothing ->
             Debug.crash badIntMsg
 
-          Ok n ->
+          Just n ->
             Good n
               { source = source
               , offset = goodOffset
@@ -731,10 +731,10 @@ float =
 
       Ok goodOffset ->
         case String.toFloat (String.slice offset goodOffset source) of
-          Err _ ->
+          Nothing ->
             Debug.crash badFloatMsg
 
-          Ok n ->
+          Just n ->
             Good n
               { source = source
               , offset = goodOffset
