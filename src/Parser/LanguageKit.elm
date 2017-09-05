@@ -22,7 +22,6 @@ module Parser.LanguageKit exposing
 import Set exposing (Set)
 import Parser exposing (..)
 import Parser.Internal as I exposing (Step(..), State)
-import ParserPrimitives as Prim
 
 
 
@@ -65,7 +64,7 @@ variable isFirst isOther keywords =
   I.Parser <| \({ source, offset, indent, context, row, col } as state1) ->
     let
       firstOffset =
-        Prim.isSubChar isFirst offset source
+        I.isSubChar isFirst offset source
     in
       if firstOffset == -1 then
         Bad ExpectingVariable state1
@@ -92,7 +91,7 @@ varHelp : (Char -> Bool) -> Int -> Int -> Int -> String -> Int -> List ctx -> St
 varHelp isGood offset row col source indent context =
   let
     newOffset =
-      Prim.isSubChar isGood offset source
+      I.isSubChar isGood offset source
   in
     if newOffset == -1 then
       { source = source
