@@ -13,8 +13,7 @@
         "Parser.LowLevel"
     ],
     "dependencies": {
-        "elm-lang/core": "6.0.0 <= v < 7.0.0",
-        "elm-lang/parser-primitives": "1.0.0 <= v < 2.0.0"
+        "elm-lang/core": "6.0.0 <= v < 7.0.0"
     },
     "test-dependencies": {
     },
