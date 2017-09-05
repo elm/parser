@@ -2,15 +2,14 @@ module Parser.Internal exposing
   ( Parser(..)
   , Step(..)
   , State
-  , chomp
-  , chompDigits
-  , chompDotAndExp
+  , chomp, chompDigits, chompDotAndExp
   , isBadIntEnd
+  , isSubString, isSubChar, findSubString
   )
 
 
 import Char
-import ParserPrimitives as Prim
+import Elm.Kernel.Parser
 
 
 
@@ -44,7 +43,7 @@ chomp : (Char -> Bool) -> Int -> String -> Int
 chomp isGood offset source =
   let
     newOffset =
-      Prim.isSubChar isGood offset source
+      isSubChar isGood offset source
   in
     if newOffset < 0 then
       offset
@@ -68,7 +67,7 @@ chompDigits isValidDigit offset source =
       Err newOffset
 
     -- ends with non-digit characters
-    else if Prim.isSubChar isBadIntEnd newOffset source /= -1 then
+    else if isSubChar isBadIntEnd newOffset source /= -1 then
       Err newOffset
 
     -- all valid digits!
@@ -92,7 +91,7 @@ chompDotAndExp : Int -> String -> Result Int Int
 chompDotAndExp offset source =
   let
     dotOffset =
-      Prim.isSubChar isDot offset source
+      isSubChar isDot offset source
   in
     if dotOffset == -1 then
       chompExp offset source
@@ -110,7 +109,7 @@ chompExp : Int -> String -> Result Int Int
 chompExp offset source =
   let
     eOffset =
-      Prim.isSubChar isE offset source
+      isSubChar isE offset source
   in
     if eOffset == -1 then
       Ok offset
@@ -118,15 +117,15 @@ chompExp offset source =
     else
       let
         opOffset =
-          Prim.isSubChar isPlusOrMinus eOffset source
+          isSubChar isPlusOrMinus eOffset source
 
         expOffset =
           if opOffset == -1 then eOffset else opOffset
       in
-        if Prim.isSubChar isZero expOffset source /= -1 then
+        if isSubChar isZero expOffset source /= -1 then
           Err expOffset
 
-        else if Prim.isSubChar Char.isDigit expOffset source == -1 then
+        else if isSubChar Char.isDigit expOffset source == -1 then
           Err expOffset
 
         else
@@ -147,3 +146,21 @@ isPlusOrMinus : Char -> Bool
 isPlusOrMinus char =
   char == '+' || char == '-'
 
+
+
+-- LOW-LEVEL HELPERS - see docs in Parser.LowLevel
+
+
+isSubString : String -> Int -> Int -> Int -> String -> (Int, Int, Int)
+isSubString =
+  Elm.Kernel.Parser.isSubString
+
+
+isSubChar : (Char -> Bool) -> Int -> String -> Int
+isSubChar =
+  Elm.Kernel.Parser.isSubChar
+
+
+findSubString : Bool -> String -> Int -> Int -> Int -> String -> (Int, Int, Int)
+findSubString =
+  Elm.Kernel.Parser.findSubString

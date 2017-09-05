@@ -34,8 +34,7 @@ module Parser exposing
 -}
 
 import Char
-import Parser.Internal as Internal exposing (Parser(..), Step(..))
-import ParserPrimitives as Prim
+import Parser.Internal as I exposing (Parser(..), Step(..))
 
 
 
@@ -46,15 +45,15 @@ import ParserPrimitives as Prim
 strings into integers.
 -}
 type alias Parser a =
-  Internal.Parser Context Problem a
+  I.Parser Context Problem a
 
 
 type alias Step a =
-  Internal.Step Context Problem a
+  I.Step Context Problem a
 
 
 type alias State =
-  Internal.State Context
+  I.State Context
 
 
 {-| Actually run a parser.
@@ -87,6 +86,7 @@ run (Parser parse) source =
           , problem = problem
           , context = context
           }
+
 
 
 -- ERRORS
@@ -577,7 +577,7 @@ token makeProblem str =
   Parser <| \({ source, offset, indent, context, row, col } as state) ->
     let
       (newOffset, newRow, newCol) =
-        Prim.isSubString str offset row col source
+        I.isSubString str offset row col source
     in
       if newOffset == -1 then
         Bad (makeProblem str) state
@@ -623,7 +623,7 @@ check out [`Parser.LanguageKit.int`](Parser-LanguageKit#int).
 int : Parser Int
 int =
   Parser <| \{ source, offset, indent, context, row, col } ->
-    case intHelp offset (Prim.isSubChar isZero offset source) source of
+    case intHelp offset (I.isSubChar isZero offset source) source of
       Err badOffset ->
         Bad BadInt
           { source = source
@@ -653,15 +653,15 @@ int =
 intHelp : Int -> Int -> String -> Result Int Int
 intHelp offset zeroOffset source =
   if zeroOffset == -1 then
-    Internal.chompDigits Char.isDigit offset source
+    I.chompDigits Char.isDigit offset source
 
-  else if Prim.isSubChar isX zeroOffset source /= -1 then
-    Internal.chompDigits Char.isHexDigit (offset + 2) source
+  else if I.isSubChar isX zeroOffset source /= -1 then
+    I.chompDigits Char.isHexDigit (offset + 2) source
 
---  else if Prim.isSubChar isO zeroOffset source /= -1 then
---    Internal.chompDigits Char.isOctDigit (offset + 2) source
+--  else if I.isSubChar isO zeroOffset source /= -1 then
+--    I.chompDigits Char.isOctDigit (offset + 2) source
 
-  else if Prim.isSubChar Internal.isBadIntEnd zeroOffset source == -1 then
+  else if I.isSubChar I.isBadIntEnd zeroOffset source == -1 then
     Ok zeroOffset
 
   else
@@ -718,7 +718,7 @@ check out [`Parser.LanguageKit.float`](Parser-LanguageKit#float).
 float : Parser Float
 float =
   Parser <| \{ source, offset, indent, context, row, col } ->
-    case floatHelp offset (Prim.isSubChar isZero offset source) source of
+    case floatHelp offset (I.isSubChar isZero offset source) source of
       Err badOffset ->
         Bad BadFloat
           { source = source
@@ -748,15 +748,15 @@ float =
 floatHelp : Int -> Int -> String -> Result Int Int
 floatHelp offset zeroOffset source =
   if zeroOffset >= 0 then
-    Internal.chompDotAndExp zeroOffset source
+    I.chompDotAndExp zeroOffset source
 
   else
     let
       dotOffset =
-        Internal.chomp Char.isDigit offset source
+        I.chomp Char.isDigit offset source
 
       result =
-        Internal.chompDotAndExp dotOffset source
+        I.chompDotAndExp dotOffset source
     in
       case result of
         Err _ ->
@@ -965,7 +965,7 @@ ignoreExactly n predicate source offset indent context row col =
   else
     let
       newOffset =
-        Prim.isSubChar predicate offset source
+        I.isSubChar predicate offset source
     in
       if newOffset == -1 then
         Bad BadRepeat
@@ -988,7 +988,7 @@ ignoreAtLeast : Int -> (Char -> Bool) -> String -> Int -> Int -> List Context ->
 ignoreAtLeast n predicate source offset indent context row col =
   let
     newOffset =
-      Prim.isSubChar predicate offset source
+      I.isSubChar predicate offset source
   in
     -- no match
     if newOffset == -1 then
@@ -1042,7 +1042,7 @@ ignoreUntil str =
   Parser <| \({ source, offset, indent, context, row, col } as state) ->
     let
       (newOffset, newRow, newCol) =
-        Prim.findSubString False str offset row col source
+        I.findSubString False str offset row col source
     in
       if newOffset == -1 then
         Bad (ExpectingClosing str) state
