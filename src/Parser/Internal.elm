@@ -26,7 +26,7 @@ type Step ctx x a
 
 
 type alias State ctx =
-  { source : String
+  { src : String
   , offset : Int
   , indent : Int
   , context : List ctx

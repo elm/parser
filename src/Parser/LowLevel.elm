@@ -50,8 +50,8 @@ withIndentLevel newIndent (I.Parser parse) =
 
 
 changeIndent : Int -> State ctx -> State ctx
-changeIndent newIndent { source, offset, context, row, col } =
-  { source = source
+changeIndent newIndent { src, offset, context, row, col } =
+  { src = src
   , offset = offset
   , indent = newIndent
   , context = context
@@ -111,7 +111,7 @@ with very little intermediate allocation.
 -}
 getSource : Parser String
 getSource =
-  I.Parser <| \state -> I.Good state.source state
+  I.Parser <| \state -> I.Good state.src state
 
 
 

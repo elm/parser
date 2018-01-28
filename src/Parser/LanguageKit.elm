@@ -61,10 +61,10 @@ can do something like this:
 -}
 variable : (Char -> Bool) -> (Char -> Bool) -> Set String -> Parser String
 variable isFirst isOther keywords =
-  I.Parser <| \({ source, offset, indent, context, row, col } as state1) ->
+  I.Parser <| \({ src, offset, indent, context, row, col } as state1) ->
     let
       firstOffset =
-        I.isSubChar isFirst offset source
+        I.isSubChar isFirst offset src
     in
       if firstOffset == -1 then
         Bad ExpectingVariable state1
@@ -73,12 +73,12 @@ variable isFirst isOther keywords =
         let
           state2 =
             if firstOffset == -2 then
-              varHelp isOther (offset + 1) (row + 1) 1 source indent context
+              varHelp isOther (offset + 1) (row + 1) 1 src indent context
             else
-              varHelp isOther firstOffset row (col + 1) source indent context
+              varHelp isOther firstOffset row (col + 1) src indent context
 
           name =
-            String.slice offset state2.offset source
+            String.slice offset state2.offset src
         in
           if Set.member name keywords then
             Bad ExpectingVariable state1
@@ -88,13 +88,13 @@ variable isFirst isOther keywords =
 
 
 varHelp : (Char -> Bool) -> Int -> Int -> Int -> String -> Int -> List ctx -> State ctx
-varHelp isGood offset row col source indent context =
+varHelp isGood offset row col src indent context =
   let
     newOffset =
-      I.isSubChar isGood offset source
+      I.isSubChar isGood offset src
   in
     if newOffset == -1 then
-      { source = source
+      { src = src
       , offset = offset
       , indent = indent
       , context = context
@@ -103,10 +103,10 @@ varHelp isGood offset row col source indent context =
       }
 
     else if newOffset == -2 then
-      varHelp isGood (offset + 1) (row + 1) 1 source indent context
+      varHelp isGood (offset + 1) (row + 1) 1 src indent context
 
     else
-      varHelp isGood newOffset row (col + 1) source indent context
+      varHelp isGood newOffset row (col + 1) src indent context
 
 
 
@@ -247,9 +247,9 @@ sequence
     }
   -> Parser (List a)
 sequence { start, end, spaces, item, separator, trailing } =
-  symbol start
-    |- spaces
-    |- sequenceEnd end spaces item separator trailing
+  ignore (symbol start) <|
+  ignore spaces <|
+    sequenceEnd end spaces item separator trailing
 
 
 {-| What’s the deal with trailing commas? Are they `Forbidden`?
@@ -262,11 +262,6 @@ type Trailing = Forbidden | Optional | Mandatory
 ignore : Parser ignore -> Parser keep -> Parser keep
 ignore ignoreParser keepParser =
   map2 revAlways ignoreParser keepParser
-
-
-(|-) : Parser ignore -> Parser keep -> Parser keep
-(|-) =
-  ignore
 
 
 revAlways : ignore -> keep -> keep
@@ -286,16 +281,13 @@ sequenceEnd end spaces parseItem sep trailing =
           sequenceEndOptional end spaces parseItem sep [item]
 
         Mandatory ->
-          spaces
-            |- symbol sep
-            |- spaces
-            |- sequenceEndMandatory end spaces parseItem sep [item]
+          ignore spaces <| ignore (symbol sep) <| ignore spaces <|
+            sequenceEndMandatory end spaces parseItem sep [item]
   in
     oneOf
-      [ parseItem
-          |> andThen chompRest
-      , symbol end
-          |- succeed []
+      [ andThen chompRest parseItem
+      , ignore (symbol end) <|
+          succeed []
       ]
 
 
@@ -307,11 +299,10 @@ sequenceEndForbidden end spaces parseItem sep revItems =
   in
     ignore spaces <|
       oneOf
-        [ symbol sep
-            |- spaces
-            |- andThen chompRest parseItem
-        , symbol end
-            |- succeed (List.reverse revItems)
+        [ ignore (symbol sep) <| ignore spaces <|
+            andThen chompRest parseItem
+        , ignore (symbol end) <|
+            succeed (List.reverse revItems)
         ]
 
 
@@ -326,9 +317,8 @@ sequenceEndOptional end spaces parseItem sep revItems =
   in
     ignore spaces <|
       oneOf
-        [ symbol sep
-            |- spaces
-            |- oneOf [ andThen chompRest parseItem, parseEnd ]
+        [ ignore (symbol sep) <| ignore spaces <|
+            oneOf [ andThen chompRest parseItem, parseEnd ]
         , parseEnd
         ]
 
@@ -345,8 +335,8 @@ sequenceEndMandatory end spaces parseItem sep revItems =
             |. spaces
             |. symbol sep
             |. spaces
-      , symbol end
-          |- succeed (List.reverse revItems)
+      , ignore (symbol end) <|
+          succeed (List.reverse revItems)
       ]
 
 

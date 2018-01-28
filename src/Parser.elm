@@ -38,6 +38,14 @@ import Parser.Internal as I exposing (Parser(..), Step(..))
 
 
 
+-- INFIX OPERATORS
+
+
+infix left 5 (|=) = keeper
+infix left 5 (|.) = ignorer
+
+
+
 -- PARSER
 
 
@@ -63,10 +71,10 @@ type alias State =
     run (keyword "true") "false" == Err ...
 -}
 run : Parser a -> String -> Result Error a
-run (Parser parse) source =
+run (Parser parse) src =
   let
     initialState =
-      { source = source
+      { src = src
       , offset = 0
       , indent = 1
       , context = []
@@ -82,7 +90,7 @@ run (Parser parse) source =
         Err
           { row = row
           , col = col
-          , source = source
+          , source = src
           , problem = problem
           , context = context
           }
@@ -273,14 +281,9 @@ Read about parser pipelines **[here][]**. They are really nice!
 
 [here]: https://github.com/elm-tools/parser/blob/master/README.md#parser-pipeline
 -}
-(|=) : Parser (a -> b) -> Parser a -> Parser b
-(|=) parseFunc parseArg =
-  map2 apply parseFunc parseArg
-
-
-apply : (a -> b) -> a -> b
-apply f a =
-  f a
+keeper : Parser (a -> b) -> Parser a -> Parser b
+keeper parseFunc parseArg =
+  map2 (<|) parseFunc parseArg
 
 
 {-| **Ignore** a value in a parser pipeline.
@@ -289,13 +292,9 @@ Read about parser pipelines **[here][]**. They are really nice!
 
 [here]: https://github.com/elm-tools/parser/blob/master/README.md#parser-pipeline
 -}
-(|.) : Parser keep -> Parser ignore -> Parser keep
-(|.) keepParser ignoreParser =
+ignorer : Parser keep -> Parser ignore -> Parser keep
+ignorer keepParser ignoreParser =
   map2 always keepParser ignoreParser
-
-
-infixl 5 |.
-infixl 5 |=
 
 
 
@@ -574,17 +573,17 @@ keyword str =
 
 token : (String -> Problem) -> String -> Parser ()
 token makeProblem str =
-  Parser <| \({ source, offset, indent, context, row, col } as state) ->
+  Parser <| \({ src, offset, indent, context, row, col } as state) ->
     let
       (newOffset, newRow, newCol) =
-        I.isSubString str offset row col source
+        I.isSubString str offset row col src
     in
       if newOffset == -1 then
         Bad (makeProblem str) state
 
       else
         Good ()
-          { source = source
+          { src = src
           , offset = newOffset
           , indent = indent
           , context = context
@@ -622,11 +621,11 @@ check out [`Parser.LanguageKit.int`](Parser-LanguageKit#int).
 -}
 int : Parser Int
 int =
-  Parser <| \{ source, offset, indent, context, row, col } ->
-    case intHelp offset (I.isSubChar isZero offset source) source of
+  Parser <| \{ src, offset, indent, context, row, col } ->
+    case intHelp offset (I.isSubChar isZero offset src) src of
       Err badOffset ->
         Bad BadInt
-          { source = source
+          { src = src
           , offset = badOffset
           , indent = indent
           , context = context
@@ -635,13 +634,13 @@ int =
           }
 
       Ok goodOffset ->
-        case String.toInt (String.slice offset goodOffset source) of
+        case String.toInt (String.slice offset goodOffset src) of
           Nothing ->
             Debug.crash badIntMsg
 
           Just n ->
             Good n
-              { source = source
+              { src = src
               , offset = goodOffset
               , indent = indent
               , context = context
@@ -651,17 +650,17 @@ int =
 
 
 intHelp : Int -> Int -> String -> Result Int Int
-intHelp offset zeroOffset source =
+intHelp offset zeroOffset src =
   if zeroOffset == -1 then
-    I.chompDigits Char.isDigit offset source
+    I.chompDigits Char.isDigit offset src
 
-  else if I.isSubChar isX zeroOffset source /= -1 then
-    I.chompDigits Char.isHexDigit (offset + 2) source
+  else if I.isSubChar isX zeroOffset src /= -1 then
+    I.chompDigits Char.isHexDigit (offset + 2) src
 
---  else if I.isSubChar isO zeroOffset source /= -1 then
---    I.chompDigits Char.isOctDigit (offset + 2) source
+--  else if I.isSubChar isO zeroOffset src /= -1 then
+--    I.chompDigits Char.isOctDigit (offset + 2) src
 
-  else if I.isSubChar I.isBadIntEnd zeroOffset source == -1 then
+  else if I.isSubChar I.isBadIntEnd zeroOffset src == -1 then
     Ok zeroOffset
 
   else
@@ -717,11 +716,11 @@ check out [`Parser.LanguageKit.float`](Parser-LanguageKit#float).
 -}
 float : Parser Float
 float =
-  Parser <| \{ source, offset, indent, context, row, col } ->
-    case floatHelp offset (I.isSubChar isZero offset source) source of
+  Parser <| \{ src, offset, indent, context, row, col } ->
+    case floatHelp offset (I.isSubChar isZero offset src) src of
       Err badOffset ->
         Bad BadFloat
-          { source = source
+          { src = src
           , offset = badOffset
           , indent = indent
           , context = context
@@ -730,13 +729,13 @@ float =
           }
 
       Ok goodOffset ->
-        case String.toFloat (String.slice offset goodOffset source) of
+        case String.toFloat (String.slice offset goodOffset src) of
           Nothing ->
             Debug.crash badFloatMsg
 
           Just n ->
             Good n
-              { source = source
+              { src = src
               , offset = goodOffset
               , indent = indent
               , context = context
@@ -746,17 +745,17 @@ float =
 
 
 floatHelp : Int -> Int -> String -> Result Int Int
-floatHelp offset zeroOffset source =
+floatHelp offset zeroOffset src =
   if zeroOffset >= 0 then
-    I.chompDotAndExp zeroOffset source
+    I.chompDotAndExp zeroOffset src
 
   else
     let
       dotOffset =
-        I.chomp Char.isDigit offset source
+        I.chomp Char.isDigit offset src
 
       result =
-        I.chompDotAndExp dotOffset source
+        I.chompDotAndExp dotOffset src
     in
       case result of
         Err _ ->
@@ -794,7 +793,7 @@ with `end` guarantees that you have successfully parsed the whole string.
 end : Parser ()
 end =
   Parser <| \state ->
-    if String.length state.source == state.offset then
+    if String.length state.src == state.offset then
       Good () state
 
     else
@@ -856,7 +855,7 @@ a float, but you also want to know exactly how it looked.
 -}
 sourceMap : (String -> a -> b) -> Parser a -> Parser b
 sourceMap func (Parser parse) =
-  Parser <| \({source, offset} as state1) ->
+  Parser <| \({src, offset} as state1) ->
     case parse state1 of
       Bad x state2 ->
         Bad x state2
@@ -864,7 +863,7 @@ sourceMap func (Parser parse) =
       Good a state2 ->
         let
           subString =
-            String.slice offset state2.offset source
+            String.slice offset state2.offset src
         in
           Good (func subString a) state2
 
@@ -942,19 +941,19 @@ ignore : Count -> (Char -> Bool) -> Parser ()
 ignore count predicate =
   case count of
     Exactly n ->
-      Parser <| \{ source, offset, indent, context, row, col } ->
-        ignoreExactly n predicate source offset indent context row col
+      Parser <| \{ src, offset, indent, context, row, col } ->
+        ignoreExactly n predicate src offset indent context row col
 
     AtLeast n ->
-      Parser <| \{ source, offset, indent, context, row, col } ->
-        ignoreAtLeast n predicate source offset indent context row col
+      Parser <| \{ src, offset, indent, context, row, col } ->
+        ignoreAtLeast n predicate src offset indent context row col
 
 
 ignoreExactly : Int -> (Char -> Bool) -> String -> Int -> Int -> List Context -> Int -> Int -> Step ()
-ignoreExactly n predicate source offset indent context row col =
+ignoreExactly n predicate src offset indent context row col =
   if n <= 0 then
     Good ()
-      { source = source
+      { src = src
       , offset = offset
       , indent = indent
       , context = context
@@ -965,11 +964,11 @@ ignoreExactly n predicate source offset indent context row col =
   else
     let
       newOffset =
-        I.isSubChar predicate offset source
+        I.isSubChar predicate offset src
     in
       if newOffset == -1 then
         Bad BadRepeat
-          { source = source
+          { src = src
           , offset = offset
           , indent = indent
           , context = context
@@ -978,23 +977,23 @@ ignoreExactly n predicate source offset indent context row col =
           }
 
       else if newOffset == -2 then
-        ignoreExactly (n - 1) predicate source (offset + 1) indent context (row + 1) 1
+        ignoreExactly (n - 1) predicate src (offset + 1) indent context (row + 1) 1
 
       else
-        ignoreExactly (n - 1) predicate source newOffset indent context row (col + 1)
+        ignoreExactly (n - 1) predicate src newOffset indent context row (col + 1)
 
 
 ignoreAtLeast : Int -> (Char -> Bool) -> String -> Int -> Int -> List Context -> Int -> Int -> Step ()
-ignoreAtLeast n predicate source offset indent context row col =
+ignoreAtLeast n predicate src offset indent context row col =
   let
     newOffset =
-      I.isSubChar predicate offset source
+      I.isSubChar predicate offset src
   in
     -- no match
     if newOffset == -1 then
       let
         state =
-          { source = source
+          { src = src
           , offset = offset
           , indent = indent
           , context = context
@@ -1006,11 +1005,11 @@ ignoreAtLeast n predicate source offset indent context row col =
 
     -- matched a newline
     else if newOffset == -2 then
-      ignoreAtLeast (n - 1) predicate source (offset + 1) indent context (row + 1) 1
+      ignoreAtLeast (n - 1) predicate src (offset + 1) indent context (row + 1) 1
 
     -- normal match
     else
-      ignoreAtLeast (n - 1) predicate source newOffset indent context row (col + 1)
+      ignoreAtLeast (n - 1) predicate src newOffset indent context row (col + 1)
 
 
 
@@ -1039,17 +1038,17 @@ for help with this.
 -}
 ignoreUntil : String -> Parser ()
 ignoreUntil str =
-  Parser <| \({ source, offset, indent, context, row, col } as state) ->
+  Parser <| \({ src, offset, indent, context, row, col } as state) ->
     let
       (newOffset, newRow, newCol) =
-        I.findSubString False str offset row col source
+        I.findSubString False str offset row col src
     in
       if newOffset == -1 then
         Bad (ExpectingClosing str) state
 
       else
         Good ()
-          { source = source
+          { src = src
           , offset = newOffset
           , indent = indent
           , context = context
@@ -1106,8 +1105,8 @@ inContext ctx (Parser parse) =
 
 
 changeContext : List Context -> State -> State
-changeContext newContext { source, offset, indent, row, col } =
-  { source = source
+changeContext newContext { src, offset, indent, row, col } =
+  { src = src
   , offset = offset
   , indent = indent
   , context = newContext
