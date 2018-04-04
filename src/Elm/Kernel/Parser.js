@@ -1,6 +1,6 @@
 /*
 
-import Elm.Kernel.Utils exposing (chr)
+import Elm.Kernel.Utils exposing (chr, Tuple3)
 
 */
 
@@ -26,14 +26,8 @@ var _Parser_isSubString = F5(function(smallString, offset, row, col, bigString)
 			)
 	}
 
-	return _Parser_tuple3(isGood ? offset : -1, row, col);
+	return __Utils_Tuple3(isGood ? offset : -1, row, col);
 });
-
-
-function _Parser_tuple3(a, b, c)
-{
-	return { $: '_Tuple3', a: a, b: b, c: c };
-}
 
 
 
@@ -68,7 +62,7 @@ var _Parser_findSubString = F6(function(before, smallString, offset, row, col, b
 
 	if (newOffset < 0)
 	{
-		return _Parser_tuple3(-1, row, col);
+		return __Utils_Tuple3(-1, row, col);
 	}
 
 	while (offset < target)
@@ -79,5 +73,5 @@ var _Parser_findSubString = F6(function(before, smallString, offset, row, col, b
 			: ( col++, (code & 0xF800) === 0xD800 && offset++ )
 	}
 
-	return _Parser_tuple3(offset, row, col);
+	return __Utils_Tuple3(offset, row, col);
 });
