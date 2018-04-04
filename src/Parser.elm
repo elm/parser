@@ -623,29 +623,36 @@ int : Parser Int
 int =
   Parser <| \{ src, offset, indent, context, row, col } ->
     case intHelp offset (I.isSubChar isZero offset src) src of
-      Err badOffset ->
+      Err newOffset ->
         Bad BadInt
           { src = src
-          , offset = badOffset
+          , offset = newOffset
           , indent = indent
           , context = context
           , row = row
-          , col = col + (badOffset - offset)
+          , col = col + (newOffset - offset)
           }
 
-      Ok goodOffset ->
-        case String.toInt (String.slice offset goodOffset src) of
+      Ok newOffset ->
+        case String.toInt (String.slice offset newOffset src) of
           Nothing ->
-            Debug.crash badIntMsg
+            Bad BadInt
+              { src = src
+              , offset = newOffset
+              , indent = indent
+              , context = context
+              , row = row
+              , col = col + (newOffset - offset)
+              }
 
           Just n ->
             Good n
               { src = src
-              , offset = goodOffset
+              , offset = newOffset
               , indent = indent
               , context = context
               , row = row
-              , col = col + (goodOffset - offset)
+              , col = col + (newOffset - offset)
               }
 
 
@@ -718,29 +725,36 @@ float : Parser Float
 float =
   Parser <| \{ src, offset, indent, context, row, col } ->
     case floatHelp offset (I.isSubChar isZero offset src) src of
-      Err badOffset ->
+      Err newOffset ->
         Bad BadFloat
           { src = src
-          , offset = badOffset
+          , offset = newOffset
           , indent = indent
           , context = context
           , row = row
-          , col = col + (badOffset - offset)
+          , col = col + (newOffset - offset)
           }
 
-      Ok goodOffset ->
-        case String.toFloat (String.slice offset goodOffset src) of
+      Ok newOffset ->
+        case String.toFloat (String.slice offset newOffset src) of
           Nothing ->
-            Debug.crash badFloatMsg
+            Bad BadFloat
+              { src = src
+              , offset = newOffset
+              , indent = indent
+              , context = context
+              , row = row
+              , col = col + (newOffset - offset)
+              }
 
           Just n ->
             Good n
               { src = src
-              , offset = goodOffset
+              , offset = newOffset
               , indent = indent
               , context = context
               , row = row
-              , col = col + (goodOffset - offset)
+              , col = col + (newOffset - offset)
               }
 
 
