@@ -15,7 +15,7 @@ module Parser.Advanced exposing
   , spaces
   , lineComment
   , multiComment
-  , nestableComment
+  , Nestable(..)
 
   , succeed
   , problem
@@ -1107,9 +1107,17 @@ lineComment start =
   ignorer (token start) (chompUntilEndOr "\n")
 
 
-multiComment : Token x -> Token x -> Parser c x ()
-multiComment open close =
-  ignorer (token open) (chompUntil close)
+multiComment : Token x -> Token x -> Nestable -> Parser c x ()
+multiComment open close nestable =
+  case nestable of
+    NotNestable ->
+      ignorer (token open) (chompUntil close)
+
+    Nestable ->
+      nestableComment open close
+
+
+type Nestable = NotNestable | Nestable
 
 
 nestableComment : Token x -> Token x -> Parser c x ()
