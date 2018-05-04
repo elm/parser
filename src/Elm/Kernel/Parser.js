@@ -51,19 +51,20 @@ var _Parser_isSubChar = F3(function(predicate, offset, string)
 });
 
 
+var _Parser_isAsciiChar = F3(function(char, offset, string)
+{
+	return char[0] === string[offset];
+});
+
+
 
 // FIND STRING
 
 
-var _Parser_findSubString = F6(function(before, smallString, offset, row, col, bigString)
+var _Parser_findSubString = F5(function(smallString, offset, row, col, bigString)
 {
 	var newOffset = bigString.indexOf(smallString, offset);
-	var target = before ? newOffset : newOffset + smallString.length
-
-	if (newOffset < 0)
-	{
-		return __Utils_Tuple3(-1, row, col);
-	}
+	var target = newOffset < 0 ? bigString.length : newOffset;
 
 	while (offset < target)
 	{
@@ -73,5 +74,5 @@ var _Parser_findSubString = F6(function(before, smallString, offset, row, col, b
 			: ( col++, (code & 0xF800) === 0xD800 && offset++ )
 	}
 
-	return __Utils_Tuple3(offset, row, col);
+	return __Utils_Tuple3(newOffset, row, col);
 });
