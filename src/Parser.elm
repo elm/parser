@@ -14,7 +14,7 @@ module Parser exposing
   , spaces
   , lineComment
   , multiComment
-  , nestableComment
+  , Nestable(..)
 
   , succeed
   , problem
@@ -424,11 +424,7 @@ sequence i =
     , end = toToken i.end
     , spaces = i.spaces
     , item = i.item
-    , trailing =
-        case i.trailing of
-          Forbidden -> A.Forbidden
-          Optional -> A.Optional
-          Mandatory -> A.Mandatory
+    , trailing = toAdvancedTrailing i.trailing
     }
 
 
@@ -439,25 +435,127 @@ club](http://poorlydrawnlines.com/comic/shapes-club/)!
 type Trailing = Forbidden | Optional | Mandatory
 
 
+toAdvancedTrailing : Trailing -> A.Trailing
+toAdvancedTrailing trailing =
+  case trailing of
+    Forbidden -> A.Forbidden
+    Optional -> A.Optional
+    Mandatory -> A.Mandatory
+
+
 
 -- WHITESPACE
 
 
+{-| Parse zero or more `' '`, `'\n'`, and `'\r'` characters.
+
+The implementation is pretty simple:
+
+    spaces : Parser ()
+    spaces =
+      chompWhile (\c -> c == ' ' || c == '\n' || c == '\r')
+
+So if you need something different (like tabs) just define an alternative with
+the necessary tweaks! Check out [`lineComment`](#lineComment) and
+[`multiComment`](#multiComment) for more complex situations.
+-}
 spaces : Parser ()
 spaces =
   A.spaces
 
 
+{-| Parse single-line comments:
+
+    elm : Parser ()
+    elm =
+      lineComment "--"
+
+    js : Parser ()
+    js =
+      lineComment "//"
+
+    python : Parser ()
+    python =
+      lineComment "#"
+
+This parser is defined like this:
+
+    lineComment : String -> Parser ()
+    lineComment str =
+      symbol str
+        |. chompUntilEndOr "\n"
+
+So it will consume the remainder of the line. If the file ends before you see
+a newline, that is fine too.
+-}
 lineComment : String -> Parser ()
 lineComment str =
   A.lineComment (toToken str)
 
 
-multiComment : String -> String -> Parser ()
-multiComment open close =
-  A.multiComment (toToken open) (toToken close)
+{-| Parse multi-line comments. So if you wanted to parse Elm whitespace or
+JS whitespace, you could say:
+
+    elm : Parser ()
+    elm =
+      chompZeroOrMore <|
+        oneOf
+          [ lineComment "--"
+          , multiComment "{-" "-}" Nestable
+          , spaces
+          ]
+
+    js : Parser ()
+    js =
+      chompZeroOrMore <|
+        oneOf
+          [ lineComment "//"
+          , multiComment "/*" "*/" NotNestable
+          , chompWhile (\c -> c == ' ' || c == '\n' || c == '\r' || c == '\t')
+          ]
+
+**Note:** The fact that `spaces` and `chompWhile` come last is really
+important! They can both succeed without chomping any characters, so if they
+were the first option, they would always succeed and bypass the others!
+-}
+multiComment : String -> String -> Nestable -> Parser ()
+multiComment open close nestable =
+  A.multiComment (toToken open) (toToken close) (toAdvancedNestable nestable)
 
 
-nestableComment : String -> String -> Parser ()
-nestableComment open close =
-  A.nestableComment (toToken open) (toToken close)
+{-| Not all languages handle multi-line comments the same. Multi-line comments
+in C-style syntax are `NotNestable`, meaning they can be implemented like this:
+
+    js : Parser ()
+    js =
+      symbol "/*"
+        |. chompUntil "*/"
+
+In fact, `multiComment "/*" "*/" NotNestable` *is* implemented like that! It is
+very simple, but it does not allow you to nest comments like this:
+
+```javascript
+/*
+line1
+/* line2 */
+line3
+*/
+```
+
+It would stop on the first `*/`, eventually throwing a syntax error on the
+second `*/`. This can be pretty annoying in long files.
+
+Languages like Elm allow you to nest multi-line comments, but your parser needs
+to be a bit fancier to handle this. After you start a comment, you have to
+detect if there is another one inside it! And then you have to make sure all
+the `{-` and `-}` match up properly! Saying `multiComment "{-" "-}" Nestable`
+does all that for you.
+-}
+type Nestable = NotNestable | Nestable
+
+
+toAdvancedNestable : Nestable -> A.Nestable
+toAdvancedNestable nestable =
+  case nestable of
+    NotNestable -> A.NotNestable
+    Nestable -> A.Nestable
