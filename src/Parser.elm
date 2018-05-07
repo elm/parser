@@ -1,52 +1,13 @@
 module Parser exposing
-  ( Parser
-  , run
-
-  , int
-  , float
-  , number
-  , symbol
-  , keyword
-  , variable
-  , sequence
-  , Trailing(..)
-  , end
-
-  , spaces
-  , lineComment
-  , multiComment
-  , Nestable(..)
-
-  , succeed
-  , problem
-  , map
-  , (|=)
-  , (|.)
-  , lazy
-  , andThen
-
-  , oneOf
-  , backtrackable
-  , commit
-
-  , getChompedString
-  , chompIf
-  , chompWhile
-  , chompUntil
-  , chompUntilEndOr
-  , mapChompedString
-
-  , loop
-  , Step(..)
-
-  , withIndent
-  , getIndent
-
-  , getPosition
-  , getRow
-  , getCol
-  , getOffset
-  , getSource
+  ( Parser, run
+  , int, float, number, symbol, keyword, variable, end
+  , succeed, (|=), (|.), lazy, andThen, problem
+  , oneOf, map, backtrackable, commit, token
+  , sequence, Trailing(..), loop, Step(..)
+  , spaces, lineComment, multiComment, Nestable(..)
+  , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
+  , withIndent, getIndent
+  , getPosition, getRow, getCol, getOffset, getSource
   )
 
 
@@ -62,7 +23,7 @@ module Parser exposing
 @docs succeed, (|=), (|.), lazy, andThen, problem
 
 # Branches
-@docs oneOf, map, backtrackable, commit
+@docs oneOf, map, backtrackable, commit, token
 
 # Loops
 @docs sequence, Trailing, loop, Step
@@ -76,7 +37,7 @@ module Parser exposing
 # Indentation
 @docs withIndent, getIndent
 
-# State
+# Positions
 @docs getPosition, getRow, getCol, getOffset, getSource
 -}
 
@@ -279,46 +240,6 @@ ignorer =
   (|.)
 
 
-{-| Parse one thing `andThen` parse another thing. This is useful when you want
-to check on what you just parsed. For example, maybe you want U.S. zip codes
-and `int` is not suitable because it does not allow leading zeros. You could
-say:
-
-    zipCode : Parser String
-    zipCode =
-      getChompedString (chompWhile Char.isDigit)
-        |> andThen checkZipCode
-
-    checkZipCode : String -> Parser String
-    checkZipCode code =
-      if String.length code == 5 then
-        succeed code
-      else
-        problem "a U.S. zip code has exactly 5 digits"
-
-First we chomp digits `andThen` we check if it is a valid U.S. zip code. We
-`succeed` if it has exactly five digits and report a `problem` if not.
-
-Check out [`examples/String.elm`](TODO) for another example that uses `andThen`
-to verify unicode code points.
-
-**Note:** If you are using `andThen` recursively and blowing the stack, check
-out the [`loop`](#loop) function to limit stack usage.
--}
-andThen : (a -> Parser b) -> Parser a -> Parser b
-andThen =
-  A.andThen
-
-
-{-| Indicate that a parser has reached a dead end. "Everything was going fine
-until I ran into this problem." Check out the [`andThen`](#andThen) docs to see
-an example usage.
--}
-problem : String -> Parser a
-problem msg =
-  A.problem (Problem msg)
-
-
 {-| Helper to define recursive parsers. Say we want a parser for simple
 boolean expressions:
 
@@ -362,6 +283,46 @@ for this as well!)
 lazy : (() -> Parser a) -> Parser a
 lazy =
   A.lazy
+
+
+{-| Parse one thing `andThen` parse another thing. This is useful when you want
+to check on what you just parsed. For example, maybe you want U.S. zip codes
+and `int` is not suitable because it does not allow leading zeros. You could
+say:
+
+    zipCode : Parser String
+    zipCode =
+      getChompedString (chompWhile Char.isDigit)
+        |> andThen checkZipCode
+
+    checkZipCode : String -> Parser String
+    checkZipCode code =
+      if String.length code == 5 then
+        succeed code
+      else
+        problem "a U.S. zip code has exactly 5 digits"
+
+First we chomp digits `andThen` we check if it is a valid U.S. zip code. We
+`succeed` if it has exactly five digits and report a `problem` if not.
+
+Check out [`examples/String.elm`](TODO) for another example that uses `andThen`
+to verify unicode code points.
+
+**Note:** If you are using `andThen` recursively and blowing the stack, check
+out the [`loop`](#loop) function to limit stack usage.
+-}
+andThen : (a -> Parser b) -> Parser a -> Parser b
+andThen =
+  A.andThen
+
+
+{-| Indicate that a parser has reached a dead end. "Everything was going fine
+until I ran into this problem." Check out the [`andThen`](#andThen) docs to see
+an example usage.
+-}
+problem : String -> Parser a
+problem msg =
+  A.problem (Problem msg)
 
 
 
@@ -428,11 +389,63 @@ backtrackable =
   A.backtrackable
 
 
-{-|
+{-| `commit` is almost always paired with `backtrackable` in some way, and it
+is tricky to use well.
+
+Read [this document](TODO) to learn how `oneOf`, `backtrackable`, and `commit`
+work and interact with each other. It is subtle and important!
 -}
 commit : a -> Parser a
 commit =
   A.commit
+
+
+
+-- TOKEN
+
+
+{-| Parse exactly the given string, without any regard to what comes next.
+
+A potential pitfall when parsing keywords is getting tricked by variables that
+start with a keyword, like `let` in `letters` or `import` in `important`. This
+is especially likely if you have a whitespace parser that can consume zero
+charcters. So the [`keyword`](#keyword) parser is defined with `token` and a
+trick to peek ahead a bit:
+
+    keyword : String -> Parser ()
+    keyword kwd =
+      succeed identity
+        |. backtrackable (token kwd)
+        |= oneOf
+            [ map (\_ -> True) (backtrackable (chompIf isVarChar))
+            , succeed False
+            ]
+        |> andThen (checkEnding kwd)
+
+    checkEnding : String -> Bool -> Parser ()
+    checkEnding kwd isBadEnding =
+      if isBadEnding then
+        problem ("expecting the `" ++ kwd ++ "` keyword")
+      else
+        commit ()
+
+    isVarChar : Char -> Bool
+    isVarChar char =
+      Char.isAlphaNum char || char == '_'
+
+This definition is specially designed so that (1) if you really see `let` you
+commit to that path and (2) if you see `letters` instead you can backtrack and
+try other options. If I had just put a `backtrackable` around the whole thing
+you would not get (1) anymore.
+-}
+token : String -> Parser ()
+token str =
+  A.token (toToken str)
+
+
+toToken : String -> A.Token Problem
+toToken str =
+  A.Token str (Expecting str)
 
 
 
@@ -505,54 +518,6 @@ toAdvancedStep step =
   case step of
     Loop s -> A.Loop s
     Done a -> A.Done a
-
-
-
--- TOKEN
-
-
-{-| Parse exactly the given string, without any regard to what comes next.
-
-A potential pitfall when parsing keywords is getting tricked by variables that
-start with a keyword, like `let` in `letters` or `import` in `important`. This
-is especially likely if you have a whitespace parser that can consume zero
-charcters. So the [`keyword`](#keyword) parser is defined with `token` and a
-trick to peek ahead a bit:
-
-    keyword : String -> Parser ()
-    keyword kwd =
-      succeed identity
-        |. backtrackable (token kwd)
-        |= oneOf
-            [ map (\_ -> True) (backtrackable (chompIf isVarChar))
-            , succeed False
-            ]
-        |> andThen (checkEnding kwd)
-
-    checkEnding : String -> Bool -> Parser ()
-    checkEnding kwd isBadEnding =
-      if isBadEnding then
-        problem ("expecting the `" ++ kwd ++ "` keyword")
-      else
-        commit ()
-
-    isVarChar : Char -> Bool
-    isVarChar char =
-      Char.isAlphaNum char || char == '_'
-
-This definition is specially designed so that (1) if you really see `let` you
-commit to that path and (2) if you see `letters` instead you can backtrack and
-try other options. If I had just put a `backtrackable` around the whole thing
-you would not get (1) anymore.
--}
-token : String -> Parser ()
-token str =
-  A.token (toToken str)
-
-
-toToken : String -> A.Token Problem
-toToken str =
-  A.Token str (Expecting str)
 
 
 
@@ -701,8 +666,8 @@ I have had better luck with `chompWhile isSymbol` and sorting out which
 operator it is afterwards.
 -}
 symbol : String -> Parser ()
-symbol =
-  Debug.todo "symbol"
+symbol str =
+  A.symbol (A.Token str (ExpectingSymbol str))
 
 
 
@@ -732,8 +697,8 @@ be parsed as `let ters` and then wonder where the equals sign is! Check out the
 [`token`](#token) docs if you need to customize this!
 -}
 keyword : String -> Parser ()
-keyword =
-  Debug.todo "keyword"
+keyword kwd =
+  A.keyword (A.Token kwd (ExpectingKeyword kwd))
 
 
 
