@@ -1,54 +1,45 @@
 module Parser.Advanced exposing
-  ( Parser
-  , run
-
-  , int
-  , float
-  , number
-  , token
-  , Token(..)
-  , variable
-  , sequence
-  , Trailing(..)
-  , end
-
-  , spaces
-  , lineComment
-  , multiComment
-  , Nestable(..)
-
-  , succeed
-  , problem
-  , map
-  , (|=)
-  , (|.)
-  , map2
-  , lazy
-  , andThen
-  , zeroOrMore
-
-  , oneOf
-  , backtrackable
-  , commit
-  , failure
-
-  , getChompedString
-  , chompIf
-  , chompWhile
-  , chompUntil
-  , chompUntilEndOr
-  , chompZeroOrMore
-  , mapChompedString
-
-  , inContext
-  , getIndent
-  , withIndent
-  , getPosition
-  , getRow
-  , getCol
-  , getOffset
-  , getSource
+  ( Parser, run
+  , int, float, number, symbol, keyword, variable, end
+  , succeed, (|=), (|.), lazy, andThen, problem
+  , oneOf, map, backtrackable, commit, token, Token(..)
+  , sequence, Trailing(..), loop, Step(..)
+  , spaces, lineComment, multiComment, Nestable(..)
+  , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
+  , withIndent, getIndent
+  , getPosition, getRow, getCol, getOffset, getSource
   )
+
+
+{-|
+
+# Parsers
+@docs Parser, run
+
+# Building Blocks
+@docs int, float, number, symbol, keyword, variable, end
+
+# Pipelines
+@docs succeed, (|=), (|.), lazy, andThen, problem
+
+# Branches
+@docs oneOf, map, backtrackable, commit, token
+
+# Loops
+@docs sequence, Trailing, loop, Step
+
+# Whitespace
+@docs spaces, lineComment, multiComment, Nestable
+
+# Chompers
+@docs getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
+
+# Indentation
+@docs withIndent, getIndent
+
+# Positions
+@docs getPosition, getRow, getCol, getOffset, getSource
+-}
 
 
 import Char
@@ -90,11 +81,13 @@ So the maximum call depth goes from 5 to 3.
 -- PARSERS
 
 
+{-|
+-}
 type Parser context problem value =
-  Parser (State context -> Step context problem value)
+  Parser (State context -> PStep context problem value)
 
 
-type Step context problem value
+type PStep context problem value
   = Good Bool value (State context)
   | Bad Bool (Bag context problem)
 
@@ -279,7 +272,7 @@ oneOf parsers =
   Parser <| \s -> oneOfHelp s Empty parsers
 
 
-oneOfHelp : State c -> Bag c x -> List (Parser c x a) -> Step c x a
+oneOfHelp : State c -> Bag c x -> List (Parser c x a) -> PStep c x a
 oneOfHelp s0 bag parsers =
   case parsers of
     [] ->
@@ -307,7 +300,7 @@ zeroOrMore (Parser parse) stuck =
     zeroOrMoreHelp False parse [] s stuck
 
 
-zeroOrMoreHelp : Bool -> (State c -> Step c x a) -> List a -> State c -> x -> Step c x (List a)
+zeroOrMoreHelp : Bool -> (State c -> PStep c x a) -> List a -> State c -> x -> PStep c x (List a)
 zeroOrMoreHelp p parse revList s0 stuck =
   case parse s0 of
     Good p1 a s1 ->
@@ -318,6 +311,36 @@ zeroOrMoreHelp p parse revList s0 stuck =
 
     Bad p1 x ->
       Good (p || p1) (List.reverse revList) s0
+
+
+type Step state a
+  = Loop state
+  | Done a
+
+
+loop : state -> (state -> Parser c x (Step state a)) -> Parser c x a
+loop state callback =
+  Parser <| \s ->
+    loopHelp False state callback s
+
+
+loopHelp : Bool -> state -> (state -> Parser c x (Step state a)) -> State c -> PStep c x a
+loopHelp p state callback s0 =
+  let
+    (Parser parse) =
+      callback state
+  in
+  case parse s0 of
+    Good p1 step s1 ->
+      case step of
+        Loop newState ->
+          loopHelp (p || p1) newState callback s1
+
+        Done result ->
+          Good (p || p1) result s1
+
+    Bad p1 x ->
+      Bad (p || p1) x
 
 
 
@@ -340,10 +363,41 @@ commit a =
   Parser <| \s -> Good True a s
 
 
-failure : x -> Parser c x a
-failure x =
+
+-- SYMBOL
+
+
+symbol : Token x -> Parser c x ()
+symbol =
+  token
+
+
+
+-- KEYWORD
+
+
+keyword : Token x -> Parser c x ()
+keyword (Token kwd expecting) =
+  let
+    progress =
+      not (String.isEmpty kwd)
+  in
   Parser <| \s ->
-    Bad True (fromState s x)
+    let
+      (newOffset, newRow, newCol) =
+        isSubString kwd s.offset s.row s.col s.src
+    in
+    if newOffset == -1 || 0 <= isSubChar (\c -> Char.isAlphaNum c || c == '_') newOffset s.src then
+      Bad False (fromState s expecting)
+    else
+      Good progress ()
+        { src = s.src
+        , offset = newOffset
+        , indent = s.indent
+        , context = s.context
+        , row = newRow
+        , col = newCol
+        }
 
 
 
@@ -353,19 +407,6 @@ failure x =
 type Token x = Token String x
 
 
-{-| Parse a token like `let`, `(`, or `+`.
-
-**Note:** A potential pitfall when parsing keywords is getting tricked by
-variables that start with a keyword, like `let` in `letters` or `import` in
-`important`. This is especially likely if you have a whitespace parser that
-can consume zero charcters. So you may want to use `peek` to check on it.
-
-    keyword : Token x -> Parser c x ()
-    keyword (Token _ x as token) =
-      backtrackable (chomp token)
-        |. peek isNotVarChar x
-        |. commit ()
--}
 token : Token x -> Parser c x ()
 token (Token str expecting) =
   let
@@ -461,7 +502,7 @@ number c =
 -- INVARIANTS:
 --   endOffset > s.offset
 --
-finalizeNumber : x -> Result x (t -> a) -> (String -> Maybe t) -> Int -> State c -> Step c x a
+finalizeNumber : x -> Result x (t -> a) -> (String -> Maybe t) -> Int -> State c -> PStep c x a
 finalizeNumber invalid handler toNumber endOffset s =
   case handler of
     Err x ->
@@ -484,7 +525,7 @@ bumpOffset newOffset s =
   }
 
 
-finalizeFloat : x -> x -> Result x (Int -> a) -> Result x (Float -> a) -> Int -> State c -> Step c x a
+finalizeFloat : x -> x -> Result x (Int -> a) -> Result x (Float -> a) -> Int -> State c -> PStep c x a
 finalizeFloat invalid expecting intSettings floatSettings intOffset s =
   let
     floatOffset = consumeDotAndExp intOffset s.src
@@ -684,7 +725,7 @@ chompWhile isGood =
     chompWhileHelp isGood s.offset s.row s.col s
 
 
-chompWhileHelp : (Char -> Bool) -> Int -> Int -> Int -> State c -> Step c x ()
+chompWhileHelp : (Char -> Bool) -> Int -> Int -> Int -> State c -> PStep c x ()
 chompWhileHelp isGood offset row col s0 =
   let
     newOffset = isSubChar isGood offset s0.src
@@ -752,32 +793,6 @@ chompUntilEndOr str =
       , row = newRow
       , col = newCol
       }
-
-
-
--- CHOMP ZERO OR MORE
-
-
-chompZeroOrMore : Parser c x a -> Parser c x ()
-chompZeroOrMore (Parser parse) =
-  Parser <| \s ->
-    chompZeroOrMoreHelp False parse s
-
-
-chompZeroOrMoreHelp : Bool -> (State c -> Step c x a) -> State c -> Step c x ()
-chompZeroOrMoreHelp p parse s =
-  case parse s of
-    Good p1 _ s1 ->
-      if s.offset == s1.offset then
-        Good (p || p1) () s1
-      else
-        chompZeroOrMoreHelp (p || p1) parse s1
-
-    Bad p1 x ->
-      if p1 then
-        Bad p1 x
-      else
-        Good p () s
 
 
 
@@ -1034,22 +1049,25 @@ sequenceEnd ender ws parseItem sep trailing =
     chompRest item =
       case trailing of
         Forbidden ->
-          sequenceEndForbidden ender ws parseItem sep [item]
+          loop [item] (sequenceEndForbidden ender ws parseItem sep)
 
         Optional ->
-          sequenceEndOptional ender ws parseItem sep [item]
+          loop [item] (sequenceEndOptional ender ws parseItem sep)
 
         Mandatory ->
-          skip ws <| skip sep <| skip ws <|
-            sequenceEndMandatory ender ws parseItem sep [item]
+          ignorer
+            ( skip ws <| skip sep <| skip ws <|
+                loop [item] (sequenceEndMandatory ws parseItem sep)
+            )
+            ender
   in
   oneOf
-    [ andThen chompRest parseItem
-    , map (\_ -> []) ender
+    [ parseItem |> andThen chompRest
+    , ender |> map (\_ -> [])
     ]
 
 
-sequenceEndForbidden : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (List a)
+sequenceEndForbidden : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (Step (List a) (List a))
 sequenceEndForbidden ender ws parseItem sep revItems =
   let
     chompRest item =
@@ -1057,39 +1075,34 @@ sequenceEndForbidden ender ws parseItem sep revItems =
   in
   skip ws <|
     oneOf
-      [ skip sep <| skip ws <|
-          andThen chompRest parseItem
-      , map (\_ -> List.reverse revItems) ender
+      [ skip sep <| skip ws <| map (\item -> Loop (item :: revItems)) parseItem
+      , ender |> map (\_ -> Done (List.reverse revItems))
       ]
 
 
-sequenceEndOptional : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (List a)
+sequenceEndOptional : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (Step (List a) (List a))
 sequenceEndOptional ender ws parseItem sep revItems =
   let
     parseEnd =
-      andThen (\_ -> succeed (List.reverse revItems)) ender
-
-    chompRest item =
-      sequenceEndOptional ender ws parseItem sep (item :: revItems)
+      map (\_ -> Done (List.reverse revItems)) ender
   in
   skip ws <|
     oneOf
       [ skip sep <| skip ws <|
-          oneOf [ andThen chompRest parseItem, parseEnd ]
+          oneOf
+            [ parseItem |> map (\item -> Loop (item :: revItems))
+            , parseEnd
+            ]
       , parseEnd
       ]
 
 
-sequenceEndMandatory : Parser c x () -> Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (List a)
-sequenceEndMandatory ender ws parseItem sep revItems =
-  let
-    chompRest item =
-      sequenceEndMandatory ender ws parseItem sep (item :: revItems)
-  in
+sequenceEndMandatory : Parser c x () -> Parser c x a -> Parser c x () -> List a -> Parser c x (Step (List a) (List a))
+sequenceEndMandatory ws parseItem sep revItems =
   oneOf
-    [ andThen chompRest <|
+    [ map (\item -> Loop (item :: revItems)) <|
         ignorer parseItem (ignorer ws (ignorer sep ws))
-    , map (\_ -> List.reverse revItems) ender
+    , map (\_ -> Done (List.reverse revItems)) (succeed ())
     ]
 
 
@@ -1117,6 +1130,10 @@ multiComment open close nestable =
       nestableComment open close
 
 
+{-| Works just like [`Parser.Nestable`](Parser#nestable) to help distinguish
+between unnestable `/*` `*/` comments like in JS and nestable `{-` `-}`
+comments like in Elm.
+-}
 type Nestable = NotNestable | Nestable
 
 
