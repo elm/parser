@@ -64,7 +64,7 @@ var _Parser_isAsciiChar = F3(function(char, offset, string)
 var _Parser_findSubString = F5(function(smallString, offset, row, col, bigString)
 {
 	var newOffset = bigString.indexOf(smallString, offset);
-	var target = newOffset < 0 ? bigString.length : newOffset;
+	var target = newOffset < 0 ? bigString.length : newOffset + smallString.length;
 
 	while (offset < target)
 	{
