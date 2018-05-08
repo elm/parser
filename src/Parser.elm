@@ -98,8 +98,13 @@ run parser source =
     Ok a ->
       Ok a
 
-    Err _ ->
-      Debug.todo "format errors"
+    Err problems ->
+      Err (List.map problemToDeadEnd problems)
+
+
+problemToDeadEnd : A.Problem Never Problem -> DeadEnd
+problemToDeadEnd p =
+  DeadEnd p.row p.col p.problem
 
 
 
