@@ -6,6 +6,7 @@ module Parser exposing
   , sequence, Trailing(..), loop, Step(..)
   , spaces, lineComment, multiComment, Nestable(..)
   , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
+  , DeadEnd, Problem(..), deadEndsToString
   , withIndent, getIndent
   , getPosition, getRow, getCol, getOffset, getSource
   )
@@ -33,6 +34,9 @@ module Parser exposing
 
 # Chompers
 @docs getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
+
+# Errors
+@docs DeadEnd, Problem, deadEndsToString
 
 # Indentation
 @docs withIndent, getIndent
