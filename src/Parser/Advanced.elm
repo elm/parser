@@ -1,11 +1,12 @@
 module Parser.Advanced exposing
-  ( Parser, run
+  ( Parser, run, inContext
   , int, float, number, symbol, keyword, variable, end
   , succeed, (|=), (|.), lazy, andThen, problem
   , oneOf, map, backtrackable, commit, token, Token(..)
   , sequence, Trailing(..), loop, Step(..)
   , spaces, lineComment, multiComment, Nestable(..)
   , getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString
+  , Problem
   , withIndent, getIndent
   , getPosition, getRow, getCol, getOffset, getSource
   )
@@ -14,7 +15,7 @@ module Parser.Advanced exposing
 {-|
 
 # Parsers
-@docs Parser, run
+@docs Parser, run, inContext
 
 # Building Blocks
 @docs int, float, number, symbol, keyword, variable, end
@@ -23,7 +24,7 @@ module Parser.Advanced exposing
 @docs succeed, (|=), (|.), lazy, andThen, problem
 
 # Branches
-@docs oneOf, map, backtrackable, commit, token
+@docs oneOf, map, backtrackable, commit, token, Token
 
 # Loops
 @docs sequence, Trailing, loop, Step
@@ -81,8 +82,6 @@ So the maximum call depth goes from 5 to 3.
 -- PARSERS
 
 
-{-|
--}
 type Parser context problem value =
   Parser (State context -> PStep context problem value)
 
@@ -799,6 +798,21 @@ chompUntilEndOr str =
 -- CONTEXT
 
 
+{-| This is one of the big reasons to upgrade to `Parser.Advanced`! I use this
+in the Elm compiler to mark what I _think_ the parser is doing. For example:
+
+    type Context
+      = Definition String
+      | List
+
+    type Expr
+      = ListLiteral (List Expr)
+      | Let String Expr Expr
+
+    list : Parser Context Problem Expr
+    list =
+      TODO
+-}
 inContext : context -> Parser context x a -> Parser context x a
 inContext context (Parser parse) =
   Parser <| \s0 ->
@@ -1138,15 +1152,15 @@ type Nestable = NotNestable | Nestable
 
 
 nestableComment : Token x -> Token x -> Parser c x ()
-nestableComment (Token oStr _ as open) (Token cStr cX as close) =
+nestableComment (Token oStr oX as open) (Token cStr cX as close) =
   case String.uncons oStr of
     Nothing ->
-      Debug.todo "bad open symbol for nestable multi-line comments"
+      problem oX
 
     Just (openChar, _) ->
       case String.uncons cStr of
         Nothing ->
-          Debug.todo "bad close symbol for nestable multi-line comments"
+          problem cX
 
         Just (closeChar, _) ->
           let

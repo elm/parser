@@ -168,7 +168,7 @@ _thinks_ is happening can be really helpful!
 -}
 deadEndsToString : List DeadEnd -> String
 deadEndsToString deadEnds =
-  Debug.todo "deadEndsToString"
+  "TODO deadEndsToString"
 
 
 
