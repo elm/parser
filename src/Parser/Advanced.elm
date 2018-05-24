@@ -1042,7 +1042,7 @@ sequence i =
 
 {-| What’s the deal with trailing commas? Are they `Forbidden`?
 Are they `Optional`? Are they `Mandatory`? Welcome to [shapes
-club](http://poorlydrawnlines.com/comic/shapes-club/)!
+club](https://poorlydrawnlines.com/comic/shapes-club/)!
 -}
 type Trailing = Forbidden | Optional | Mandatory
 
