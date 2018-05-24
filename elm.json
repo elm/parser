@@ -1,17 +1,14 @@
 {
     "type": "package",
-    "name": "elm-lang/parser",
+    "name": "elm/parser",
     "version": "1.0.0",
     "summary": "a parsing library, focused on simplicity and great error messages",
     "license": "BSD-3-Clause",
-    "source-directories": [
-        "src"
-    ],
     "exposed-modules": [
         "Parser"
     ],
     "dependencies": {
-        "elm-lang/core": "6.0.0 <= v < 7.0.0"
+        "elm/core": "1.0.0 <= v < 2.0.0"
     },
     "test-dependencies": {
     },
