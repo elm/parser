@@ -51,8 +51,8 @@ All the interesting stuff is happening in `point`. It uses two operators:
 
 So the `Point` function only gets the result of the two `float` parsers.
 
-[ignore]: http://package.elm-lang.org/packages/elm-tools/parser/latest/Parser#|.
-[keep]: http://package.elm-lang.org/packages/elm-tools/parser/latest/Parser#|=
+[ignore]: https://package.elm-lang.org/packages/elm/parser/latest/Parser#|.
+[keep]: https://package.elm-lang.org/packages/elm/parser/latest/Parser#|=
 
 The theory is that `|=` introduces more “visual noise” than `|.`, making it pretty easy to pick out which lines in the pipeline are important.
 
@@ -77,7 +77,7 @@ Notice that the error messages says `this list`. That is context! That is the la
 
 This parser package lets you annotate context with the [`inContext`][inContext] function. You can let the parser know “I am trying to parse a `"list"` right now” so if an error happens anywhere in that context, you get the hand annotation!
 
-[inContext]: http://package.elm-lang.org/packages/elm-tools/parser/latest/Parser#inContext
+[inContext]: https://package.elm-lang.org/packages/elm/parser/latest/Parser#inContext
 
 > **Note:** This technique is used by the parser in the Elm compiler to give more helpful error messages.
 
@@ -98,7 +98,7 @@ Ideally, you want the error at the `z`, but the libraries I have seen make this 
 
 Say we want to create `intList`, a parser for comma separated lists of integers like `[1, 2, 3]`. We would say something like this:
 
-[delayedCommit]: http://package.elm-lang.org/packages/elm-tools/parser/latest/Parser#delayedCommit
+[delayedCommit]: https://package.elm-lang.org/packages/elm/parser/latest/Parser#delayedCommit
 
 ```elm
 import Parser exposing (..)
@@ -169,4 +169,4 @@ With `nextInt`, the [`delayedCommit`][delayedCommit] function is saying to parse
 
 <br>
 
-## [Comparison with Prior Work](https://github.com/elm-tools/parser/blob/master/comparison.md)
+## [Comparison with Prior Work](https://github.com/elm/parser/blob/master/comparison.md)
