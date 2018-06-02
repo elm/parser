@@ -1,6 +1,6 @@
 /*
 
-import Elm.Kernel.Utils exposing (chr, Tuple3)
+import Elm.Kernel.Utils exposing (chr, Tuple2, Tuple3)
 
 */
 
@@ -51,9 +51,65 @@ var _Parser_isSubChar = F3(function(predicate, offset, string)
 });
 
 
-var _Parser_isAsciiChar = F3(function(char, offset, string)
+var _Parser_isAsciiCode = F3(function(code, offset, string)
 {
-	return char[0] === string[offset];
+	return string.charCodeAt(offset) === code;
+});
+
+
+
+// NUMBERS
+
+
+var _Parser_chompBase10 = F2(function(offset, string)
+{
+	for (; offset < string.length; offset++)
+	{
+		var code = string.charCodeAt(offset);
+		if (code < 0x30 || 0x39 < code)
+		{
+			return offset;
+		}
+	}
+	return offset;
+});
+
+
+var _Parser_consumeBase = F3(function(base, offset, string)
+{
+	for (var total = 0; offset < string.length; offset++)
+	{
+		var digit = string.charCodeAt(offset) - 0x30;
+		if (digit < 0 || base <= digit) break;
+		total = base * total + digit;
+	}
+	return __Utils_Tuple2(offset, total);
+});
+
+
+var _Parser_consumeBase16 = F2(function(offset, string)
+{
+	for (var total = 0; offset < string.length; offset++)
+	{
+		var code = string.charCodeAt(offset);
+		if (0x30 <= code && code <= 0x39)
+		{
+			total = 16 * total + code - 0x30;
+		}
+		else if (0x41 <= code && code <= 0x46)
+		{
+			total = 16 * total + code - 55;
+		}
+		else if (0x61 <= code && code <= 0x66)
+		{
+			total = 16 * total + code - 87;
+		}
+		else
+		{
+			break;
+		}
+	}
+	return __Utils_Tuple2(offset, total);
 });
 
 

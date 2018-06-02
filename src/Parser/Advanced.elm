@@ -480,37 +480,44 @@ number
   -> Parser c x a
 number c =
   Parser <| \s ->
-    if isAsciiChar '0' s.offset s.src then
+    if isAsciiCode 0x30 {- 0 -} s.offset s.src then
       let
         zeroOffset = s.offset + 1
+        baseOffset = zeroOffset + 1
       in
-      if isAsciiChar 'x' zeroOffset s.src then
-        finalizeNumber c.invalid c.hex String.toInt (consume isHex (zeroOffset + 1) s.src) s
-      else if isAsciiChar 'o' zeroOffset s.src then
-        finalizeNumber c.invalid c.octal toOctal (consume isOctal (zeroOffset + 1) s.src) s
-      else if isAsciiChar 'b' zeroOffset s.src then
-        finalizeNumber c.invalid c.binary toBinary (consume isBinary (zeroOffset + 1) s.src) s
+      if isAsciiCode 0x78 {- x -} zeroOffset s.src then
+        finalizeInt c.invalid c.hex baseOffset (consumeBase16 baseOffset s.src) s
+      else if isAsciiCode 0x6F {- o -} zeroOffset s.src then
+        finalizeInt c.invalid c.octal baseOffset (consumeBase 8 baseOffset s.src) s
+      else if isAsciiCode 0x62 {- b -} zeroOffset s.src then
+        finalizeInt c.invalid c.binary baseOffset (consumeBase 2 baseOffset s.src) s
       else
-        finalizeFloat c.invalid c.expecting c.int c.float zeroOffset s
+        finalizeFloat c.invalid c.expecting c.int c.float (zeroOffset, 0) s
 
     else
-      finalizeFloat c.invalid c.expecting c.int c.float (consume Char.isDigit s.offset s.src) s
+      finalizeFloat c.invalid c.expecting c.int c.float (consumeBase 10 s.offset s.src) s
 
 
---
--- INVARIANTS:
---   endOffset > s.offset
---
-finalizeNumber : x -> Result x (t -> a) -> (String -> Maybe t) -> Int -> State c -> PStep c x a
-finalizeNumber invalid handler toNumber endOffset s =
+consumeBase : Int -> Int -> String -> (Int, Int)
+consumeBase =
+  Elm.Kernel.Parser.consumeBase
+
+
+consumeBase16 : Int -> String -> (Int, Int)
+consumeBase16 =
+  Elm.Kernel.Parser.consumeBase16
+
+
+finalizeInt : x -> Result x (Int -> a) -> Int -> (Int, Int) -> State c -> PStep c x a
+finalizeInt invalid handler startOffset (endOffset, n) s =
   case handler of
     Err x ->
       Bad True (fromState s x)
 
     Ok toValue ->
-      case toNumber (String.slice s.offset endOffset s.src) of
-        Nothing -> Bad True (fromState s invalid)
-        Just n -> Good True (toValue n) (bumpOffset endOffset s)
+      if startOffset == endOffset
+        then Bad (s.offset < startOffset) (fromState s invalid)
+        else Good True (toValue n) (bumpOffset endOffset s)
 
 
 bumpOffset : Int -> State c -> State c
@@ -524,9 +531,10 @@ bumpOffset newOffset s =
   }
 
 
-finalizeFloat : x -> x -> Result x (Int -> a) -> Result x (Float -> a) -> Int -> State c -> PStep c x a
-finalizeFloat invalid expecting intSettings floatSettings intOffset s =
+finalizeFloat : x -> x -> Result x (Int -> a) -> Result x (Float -> a) -> (Int, Int) -> State c -> PStep c x a
+finalizeFloat invalid expecting intSettings floatSettings intPair s =
   let
+    intOffset = Tuple.first intPair
     floatOffset = consumeDotAndExp intOffset s.src
   in
   if floatOffset < 0 then
@@ -536,21 +544,17 @@ finalizeFloat invalid expecting intSettings floatSettings intOffset s =
     Bad False (fromState s expecting)
 
   else if intOffset == floatOffset then
-    finalizeNumber invalid intSettings String.toInt intOffset s
+    finalizeInt invalid intSettings s.offset intPair s
 
   else
-    finalizeNumber invalid floatSettings String.toFloat floatOffset s
+    case floatSettings of
+      Err x ->
+        Bad True (fromState s invalid)
 
-
-consume : (Char -> Bool) -> Int -> String -> Int
-consume isGood offset src =
-  let
-    newOffset = isSubChar isGood offset src
-  in
-  if newOffset < 0 then
-    offset
-  else
-    consume isGood newOffset src
+      Ok toValue ->
+        case String.toFloat (String.slice s.offset floatOffset s.src) of
+          Nothing -> Bad True (fromState s invalid)
+          Just n -> Good True (toValue n) (bumpOffset floatOffset s)
 
 
 --
@@ -558,8 +562,8 @@ consume isGood offset src =
 --
 consumeDotAndExp : Int -> String -> Int
 consumeDotAndExp offset src =
-  if isAsciiChar '.' offset src then
-    consumeExp (consume Char.isDigit (offset + 1) src) src
+  if isAsciiCode 0x2E {- . -} offset src then
+    consumeExp (chompBase10 (offset + 1) src) src
   else
     consumeExp offset src
 
@@ -569,17 +573,17 @@ consumeDotAndExp offset src =
 --
 consumeExp : Int -> String -> Int
 consumeExp offset src =
-  if isAsciiChar 'e' offset src || isAsciiChar 'E' offset src then
+  if isAsciiCode 0x65 {- e -} offset src || isAsciiCode 0x45 {- E -} offset src then
     let
       eOffset = offset + 1
 
       expOffset =
-        if isAsciiChar '+' eOffset src || isAsciiChar '-' eOffset src then
+        if isAsciiCode 0x2B {- + -} eOffset src || isAsciiCode 0x2D {- - -} eOffset src then
           eOffset + 1
         else
           eOffset
 
-      newOffset = consume Char.isDigit expOffset src
+      newOffset = chompBase10 expOffset src
     in
     if expOffset == newOffset then
       -newOffset
@@ -590,52 +594,9 @@ consumeExp offset src =
     offset
 
 
-
--- HEX, OCTAL, AND BINARY
-
-
-isHex : Char -> Bool
-isHex char =
-  let
-    code = Char.toCode char
-  in
-  0x30 <= code && (code <= 0x39 || 0x41 <= code && code <= 0x46 || 0x61 <= code && code <= 0x66)
-
-
-isOctal : Char -> Bool
-isOctal char =
-  let
-    code = Char.toCode char
-  in
-  0x30 <= code && code <= 0x37
-
-
-isBinary : Char -> Bool
-isBinary char =
-  char == '0' || char == '1'
-
-
-toOctal : String -> Maybe Int
-toOctal str =
-  Just <| String.foldl addOctal 0 (String.dropLeft 2 str)
-
-
-addOctal : Char -> Int -> Int
-addOctal char total =
-  8 * total + (Char.toCode char - 48)
-
-
-toBinary : String -> Maybe Int
-toBinary str =
-  Just <| String.foldl addBinary 0 (String.dropLeft 2 str)
-
-
-addBinary : Char -> Int -> Int
-addBinary char total =
-  if char == '0' then
-    2 * total
-  else
-    2 * total + 1
+chompBase10 : Int -> String -> Int
+chompBase10 =
+  Elm.Kernel.Parser.chompBase10
 
 
 
@@ -946,9 +907,9 @@ isSubChar =
 {-| Check an offset in the string. Is it equal to the given Char? Are they
 both ASCII characters?
 -}
-isAsciiChar : Char -> Int -> String -> Bool
-isAsciiChar =
-  Elm.Kernel.Parser.isAsciiChar
+isAsciiCode : Int -> Int -> String -> Bool
+isAsciiCode =
+  Elm.Kernel.Parser.isAsciiCode
 
 
 {-| Find a substring after a given offset.
