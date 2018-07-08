@@ -2,22 +2,22 @@
 
 The goal of this document is to explain how different parsers fit together. When will it backtrack? When will it not?
 
-The `keyword` and `map` examples will introduce the concept of "consuming characters" which will pay off later when we get to `oneOf` and `backtrackable` which are the whole point of this library!
-
 <br>
 
 ### `keyword : String -> Parser ()`
 
 Say we have `keyword "import"`:
 
-| String        | Result |
-|---------------|--------|
-| `"import"`    | 6/OK   |
-| `"imp"`       | 0/ERR  |
-| `"export"`    | 0/ERR  |
-| `"important"` | 0/ERR  |
+| String        | Result     |
+|---------------|------------|
+| `"import"`    | `OK{false}` |
+| `"imp"`       | `ERR{true}` |
+| `"export"`    | `ERR{true}` |
 
-In our `n/OK` notation, we are indicating (1) how many characters we have consumed and (2) if the parser succeeded. Notice that the our parser only succeeds when it gets the string `import` without any extra letters.
+In our `OK{false}` notation, we are indicating:
+
+1. Did the parser succeed? `OK` if yes. `ERR` if not.
+2. Is it possible to backtrack? So when `keyword` succeeds, backtracking is not allowed anymore. You must continue along that path.
 
 <br>
 
@@ -26,12 +26,12 @@ In our `n/OK` notation, we are indicating (1) how many characters we have consum
 
 Say we have `map func parser`:
 
-| `parser` | Result  |
-|----------|---------|
-| n/OK     | n/OK    |
-| n/ERR    | n/ERR   |
+| `parser` | Result   |
+|----------|----------|
+| `OK{b}`  | `OK{b}`  |
+| `ERR{b}` | `ERR{b}` |
 
-So the result of `parser` is always the result of `map func parser`.
+So result of `map func parser` is always the same as the result of the `parser` itself.
 
 <br>
 
@@ -40,15 +40,22 @@ So the result of `parser` is always the result of `map func parser`.
 
 Say we have `map2 func parserA parserB`:
 
-| `parserA` | `parserB` | Result  |
-|-----------|-----------|---------|
-| n/OK      | m/OK      | n+m/OK  |
-| n/OK      | m/ERR     | n+m/ERR |
-| n/ERR     |           | n/ERR   |
+| `parserA` | `parserB` | Result         |
+|-----------|-----------|----------------|
+| `OK{b}`   | `OK{b'}`  | `OK{b && b'}`  |
+| `OK{b}`   | `ERR{b'}` | `ERR{b && b'}` |
+| `ERR{b}`  |           | `ERR{b}`       |
 
-If `parserA` succeeds, we try `parserB`. We combine the offsets and the status.
+If `parserA` succeeds, we try `parserB`. If they are both backtrackable, the combined result is backtrackable.
 
 If `parserA` fails, that is our result.
+
+This is used to define our pipeline operators like this:
+
+```elm
+(|.) a b = map2 (\keep ignore -> keep) a b
+(|=) a b = map2 (\func arg -> func arg) a b
+```
 
 <br>
 
@@ -57,18 +64,16 @@ If `parserA` fails, that is our result.
 
 Say we have `either parserA parserB`:
 
-| `parserA` | `parserB` | Result  |
-|-----------|-----------|---------|
-| n/OK      |           | n/OK    |
-| 0/ERR     | m/OK      | m/OK    |
-| 0/ERR     | m/ERR     | m/ERR   |
-| n/ERR     |           | n/ERR   |
+| `parserA`    | `parserB` | Result       |
+|--------------|-----------|--------------|
+| `OK{b}`      |           | `OK{b}`      |
+| `ERR{true}`  | `OK{b}`   | `OK{b}`      |
+| `ERR{true}`  | `ERR{b}`  | `ERR{b}`     |
+| `ERR{false}` |           | `ERR{false}` |
 
-The 4th case is very important! **If `parserA` consumes one character (or more) you do not even try `parserB`.**
+The 4th case is very important! **If `parserA` is not backtrackable, you do not even try `parserB`.**
 
 The `either` function does not appear in the public API, but I used it here because it makes the rules a bit easier to read. In the public API, we have `oneOf` instead. You can think of `oneOf` as trying `either` the head of the list, or `oneOf` the parsers in the tail of the list.
-
-The important thing here is that once you start consuming characters, you do not try the subsequent parsers.
 
 <br>
 
@@ -77,14 +82,13 @@ The important thing here is that once you start consuming characters, you do not
 
 Say we have `andThen callback parserA` where `callback a` produces `parserB`:
 
-| `parserA` | `parserB` | Result  |
-|-----------|-----------|---------|
-| 0/ERR     |           | 0/ERR   |
-| n/ERR     |           | n/ERR   |
-| n/OK      | m/OK      | n+m/OK  |
-| n/OK      | m/ERR     | n+m/ERR |
+| `parserA` | `parserB` | Result         |
+|-----------|-----------|----------------|
+| `ERR{b}`  |           | `ERR{b}`       |
+| `OK{b}`   | `OK{b'}`  | `OK{b && b'}`  |
+| `OK{b}`   | `ERR{b'}` | `ERR{b && b'}` |
 
-Even when `parserA` and `parserB` both succeed, you can end up with 0/ERR which `either` can skip over. So it does not matter whether you use `andThen` or `map2` to define a parser.
+If both parts are backtrackable, the overall result is backtrackable.
 
 <br>
 
@@ -93,12 +97,12 @@ Even when `parserA` and `parserB` both succeed, you can end up with 0/ERR which 
 
 Say we have `bactrackable parser`:
 
-| `parser` | Result  |
-|----------|---------|
-| n/OK     | 0/OK    |
-| n/ERR    | 0/ERR   |
+| `parser` | Result      |
+|----------|-------------|
+| `OK{b}`  | `OK{true}`  |
+| `ERR{b}` | `ERR{true}` |
 
-No matter what happens with `parser`, we are going to pretend that no characters were consumed. This becomes very interesting when paired with `oneOf`. You can have one of the options be `backtrackable`, so even if you do consume some characters, you can still try the next parser if something fails. **It is much more subtle than this though, so definitely read on!**
+No matter how `parser` was defined, it is backtrackable now. This becomes very interesting when paired with `oneOf`. You can have one of the options start with a `backtrackable` segment, so even if you do start down that path, you can still try the next parser if something fails. **This has important yet subtle implications on performance, so definitely read on!**
 
 <br>
 
@@ -113,13 +117,13 @@ This parser is intended to give you very precise control over backtracking behav
 
 Say we have `map2 func (backtrackable spaces) (symbol ",")` which can eat a bunch of spaces followed by a comma. Here is how it would work on different strings:
 
-| String  | Result  |
-|---------|---------|
-| `"  ,"` | 1/OK    |
-| `"  :"` | 0/ERR   |
-| `"abc"` | 0/ERR   |
+| String  | Result      |
+|---------|-------------|
+| `"  ,"` | `OK{false}` |
+| `"  :"` | `ERR{true}` |
+| `"abc"` | `ERR{true}` |
 
-Notice that only the offset from `symbol ","` counts towards the total.
+Remember how `map2` is backtrackable only if both parsers are backtrackable. So in the first case, the overall result is not backtrackable because `symbol ","` succeeded.
 
 This becomes useful when paired with `either`!
 
@@ -147,27 +151,27 @@ parser =
 
 Here is how it would work on different strings:
 
-| String    | Result  |
-|-----------|---------|
-| `"  , 4"` | 3/OK    |
-| `"  ,"`   | 1/ERR   |
-| `"  , a"` | 2/ERR   |
-| `"  ]"`   | 3/OK    |
-| `"  a"`   | 2/ERR   |
-| `"abc"`   | 0/ERR   |
+| String    | Result       |
+|-----------|--------------|
+| `"  , 4"` | `OK{false}`  |
+| `"  ,"`   | `ERR{false}` |
+| `"  , a"` | `ERR{false}` |
+| `"  ]"`   | `OK{false}`  |
+| `"  a"`   | `ERR{false}` |
+| `"abc"`   | `ERR{true}`  |
 
 Some of these cases are tricky, so let's look at them in more depth:
 
-- `"  , a"` &mdash; `backtrackable spaces`, `symbol ","`, and `spaces` all succeed. At that point we have 2/OK. The `int` parser then fails on `a`, so we finish with 2/ERR. That means `oneOf` will NOT try the second possibility.
-- `"  ]"` &mdash; `backtrackable spaces` succeeds, but `symbol ","` fails. At that point we have 0/ERR, so `oneOf` tries the second possibility. After backtracking, `spaces` and `symbol "]"` succeed with 3/OK.
-- `"  a"` &mdash; `backtrackable spaces` succeeds, but `symbol ","` fails. At that point we have 0/ERR, so `oneOf` tries the second possibility. After backtracking, `spaces` succeeds with 2/OK and `symbol "]"` fails resulting in 2/ERR.
+- `"  , a"` &mdash; `backtrackable spaces`, `symbol ","`, and `spaces` all succeed. At that point we have `OK{false}`. The `int` parser then fails on `a`, so we finish with `ERR{false}`. That means `oneOf` will NOT try the second possibility.
+- `"  ]"` &mdash; `backtrackable spaces` succeeds, but `symbol ","` fails. At that point we have `ERR{true}`, so `oneOf` tries the second possibility. After backtracking, `spaces` and `symbol "]"` succeed with `OK{false}`.
+- `"  a"` &mdash; `backtrackable spaces` succeeds, but `symbol ","` fails. At that point we have `ERR{true}`, so `oneOf` tries the second possibility. After backtracking, `spaces` succeeds with `OK{false}` and `symbol "]"` fails resulting in `ERR{false}`.
 
 <br>
 
 
 ### `oneOf` (efficient)
 
-Notice that in the previous example, we parsed `spaces` two times in some cases. This is inefficient, especially in large files with lots of whitespace. Backtracking is very inefficient in general though, so **if you are interested in performance, it is worthwhile to try to eliminate as many uses of `backtrackable` as possible.**
+Notice that in the previous example, we parsed `spaces` twice in some cases. This is inefficient, especially in large files with lots of whitespace. Backtracking is very inefficient in general though, so **if you are interested in performance, it is worthwhile to try to eliminate as many uses of `backtrackable` as possible.**
 
 So we can rewrite that last example to never backtrack:
 
