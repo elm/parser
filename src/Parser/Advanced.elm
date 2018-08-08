@@ -304,7 +304,7 @@ zeroOrMoreHelp p parse revList s0 stuck =
   case parse s0 of
     Good p1 a s1 ->
       if s0.offset == s1.offset then
-        Bad (p || p1) stuck
+        Bad (p || p1) (fromState s1 stuck)
       else
         zeroOrMoreHelp (p || p1) parse (a :: revList) s1 stuck
 
