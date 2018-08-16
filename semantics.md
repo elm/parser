@@ -95,7 +95,7 @@ If both parts are backtrackable, the overall result is backtrackable.
 
 ### `backtrackable : Parser a -> Parser a`
 
-Say we have `bactrackable parser`:
+Say we have `backtrackable parser`:
 
 | `parser` | Result      |
 |----------|-------------|
