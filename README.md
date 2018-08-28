@@ -8,7 +8,7 @@ The particular goals of this library are:
   - Produce excellent error messages.
   - Go pretty fast.
 
-This is achieved with a couple concepts that I have not seen in any other parser libraries: [parser pipelines](#parser-pipelines), [tracking context](#tracking-context), and [delayed commits](#delayed-commits).
+This is achieved with a couple concepts that I have not seen in any other parser libraries: [parser pipelines](#parser-pipelines), [backtracking](#backtracking), and [tracking context](#tracking-context).
 
 
 ## Parser Pipelines
@@ -16,14 +16,12 @@ This is achieved with a couple concepts that I have not seen in any other parser
 To parse a 2D point like `( 3, 4 )`, you might create a `point` parser like this:
 
 ```elm
-import Parser exposing (Parser, (|.), (|=), succeed, symbol, float, ignore, zeroOrMore)
-
+import Parser exposing (Parser, (|.), (|=), succeed, symbol, float, spaces)
 
 type alias Point =
   { x : Float
   , y : Float
   }
-
 
 point : Parser Point
 point =
@@ -37,11 +35,6 @@ point =
     |= float
     |. spaces
     |. symbol ")"
-
-
-spaces : Parser ()
-spaces =
-  ignore zeroOrMore (\c -> c == ' ')
 ```
 
 All the interesting stuff is happening in `point`. It uses two operators:
@@ -57,6 +50,16 @@ So the `Point` function only gets the result of the two `float` parsers.
 The theory is that `|=` introduces more “visual noise” than `|.`, making it pretty easy to pick out which lines in the pipeline are important.
 
 I recommend having one line per operator in your parser pipeline. If you need multiple lines for some reason, use a `let` or make a helper function.
+
+
+
+## Backtracking
+
+To make fast parsers with precise error messages, all of the parsers in this package do not backtrack by default. Once you start going down a path, you keep going down it.
+
+This is nice in a string like `[ 1, 23zm5, 3 ]` where you want the error at the `z`. If we had backtracking by default, you might get the error on `[` instead. That is way less specific and harder to fix!
+
+So the defaults are nice, but sometimes the easiest way to write a parser is to look ahead a bit and see what is going to happen. It is definitely more costly to do this, but it can be handy if there is no other way. This is the role of [`backtrackable`](https://package.elm-lang.org/packages/elm/parser/latest/Parser#backtrackable) parsers. Check out the [semantics](https://github.com/elm/parser/blob/master/semantics.md) page for more details!
 
 
 ## Tracking Context
@@ -75,95 +78,10 @@ That may be true, but it is not how humans think. It is how text editors think! 
 
 Notice that the error messages says `this list`. That is context! That is the language my brain speaks, not rows and columns.
 
-This parser package lets you annotate context with the [`inContext`][inContext] function. You can let the parser know “I am trying to parse a `"list"` right now” so if an error happens anywhere in that context, you get the hand annotation!
+Once you get comfortable with the `Parser` module, you can switch over to `Parser.Advanced` and use [`inContext`](https://package.elm-lang.org/packages/elm/parser/latest/Parser-Advanced#inContext) to track exactly what your parser thinks it is doing at the moment. You can let the parser know “I am trying to parse a `"list"` right now” so if an error happens anywhere in that context, you get the hand annotation!
 
-[inContext]: https://package.elm-lang.org/packages/elm/parser/latest/Parser#inContext
+This technique is used by the parser in the Elm compiler to give more helpful error messages.
 
-> **Note:** This technique is used by the parser in the Elm compiler to give more helpful error messages.
-
-
-## Delayed Commits
-
-To make fast parsers with precise error messages, this package lets you control when a parser **commits** to a certain path.
-
-For example, you are trying to parse the following list:
-
-```elm
-[ 1, 23zm5, 3 ]
-```
-
-Ideally, you want the error at the `z`, but the libraries I have seen make this difficult to achieve efficiently. You often end up with an error at `[` because “something went wrong”.
-
-**This package introduces [`delayedCommit`][delayedCommit] to resolve this.**
-
-Say we want to create `intList`, a parser for comma separated lists of integers like `[1, 2, 3]`. We would say something like this:
-
-[delayedCommit]: https://package.elm-lang.org/packages/elm/parser/latest/Parser#delayedCommit
-
-```elm
-import Parser exposing (..)
-
-
-{-| We start by ignoring the opening square brace and some spaces.
-We only really care about the numbers, so we parse an `int` and
-then use `intListHelp` to start chomping other list entries.
--}
-intList : Parser (List Int)
-intList =
-  succeed identity
-    |. symbol "["
-    |. spaces
-    |= andThen (\n -> intListHelp [n]) int
-    |. spaces
-    |. symbol "]"
-
-
-{-| `intListHelp` checks if there is a `nextInt`. If so, it
-continues trying to find more list items. If not, it gives
-back the list of integers we have accumulated so far.
--}
-intListHelp : List Int -> Parser (List Int)
-intListHelp revInts =
-  oneOf
-    [ nextInt
-        |> andThen (\n -> intListHelp (n :: revInts))
-    , succeed (List.reverse revInts)
-    ]
-```
-
-Now we get to the tricky part! How do we define `nextInt`? Here are two approaches, but only the second one actually works!
-
-
-```elm
--- BAD
-badNextInt : Parser Int
-badNextInt =
-  succeed identity
-    |. spaces
-    |. symbol ","
-    |. spaces
-    |= int
-
--- GOOD
-nextInt : Parser Int
-nextInt =
-  delayedCommit spaces <|
-    succeed identity
-      |. symbol ","
-      |. spaces
-      |= int
-```
-
-The `badNextInt` looks pretty normal, but it will not work. It commits as soon as the first `spaces` parser succeeds. It fails in the following situation:
-
-```elm
-[ 1, 2, 3 ]
-          ^
-```
-
-When we get to the closing `]` we have already successfully parsed some spaces. That means we are commited to `badNextInt` and need a comma. That fails, so the whole parse fails!
-
-With `nextInt`, the [`delayedCommit`][delayedCommit] function is saying to parse `spaces` but only commit if progress is made *after* that. So we are only commited to this parser if we see a comma.
 
 <br>
 
