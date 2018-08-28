@@ -41,7 +41,7 @@ parse string =
 -- PARSER
 
 
-{-| We want to handle integers, hexidecimal numbers, and floats. Octal numbers
+{-| We want to handle integers, hexadecimal numbers, and floats. Octal numbers
 like `0o17` and binary numbers like `0b01101100` are not allowed.
 
     run digits "1234"      == Ok (Integer 1234)

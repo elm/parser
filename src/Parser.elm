@@ -604,7 +604,7 @@ float =
 
 
 {-| Parse a bunch of different kinds of numbers without backtracking. A parser
-for Elm would need to handle integers, floats, and hexidecimal like this:
+for Elm would need to handle integers, floats, and hexadecimal like this:
 
     type Expr
       = Variable String
