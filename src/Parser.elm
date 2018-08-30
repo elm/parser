@@ -1073,8 +1073,7 @@ variable i =
 {-| Handle things like lists and records, but you can customize the details
 however you need. Say you want to parse C-style code blocks:
 
-    import Parser exposing (Parser)
-    import Parser.LanguageKit as Parser exposing (Trailing(..))
+    import Parser exposing (Parser, Trailing(..))
 
     block : Parser (List Stmt)
     block =
