@@ -359,8 +359,10 @@ sample of what that code might look like:
 This parser will keep trying parsers until `oneOf` them starts chomping
 characters. Once a path is chosen, it does not come back and try the others.
 
-**Note:** I highly recommend reading [this document](TODO) to learn how
+**Note:** I highly recommend reading [this document][semantics] to learn how
 `oneOf` and `backtrackable` interact. It is subtle and important!
+
+[semantics]: https://github.com/elm/parser/blob/master/semantics.md
 -}
 oneOf : List (Parser a) -> Parser a
 oneOf =
@@ -390,8 +392,9 @@ map =
 {-| It is quite tricky to use `backtrackable` well! It can be very useful, but
 also can degrade performance and error message quality.
 
-Read [this document](TODO) to learn how `oneOf`, `backtrackable`, and `commit`
-work and interact with each other. It is subtle and important!
+Read [this document](https://github.com/elm/parser/blob/master/semantics.md)
+to learn how `oneOf`, `backtrackable`, and `commit` work and interact with
+each other. It is subtle and important!
 -}
 backtrackable : Parser a -> Parser a
 backtrackable =
@@ -401,8 +404,9 @@ backtrackable =
 {-| `commit` is almost always paired with `backtrackable` in some way, and it
 is tricky to use well.
 
-Read [this document](TODO) to learn how `oneOf`, `backtrackable`, and `commit`
-work and interact with each other. It is subtle and important!
+Read [this document](https://github.com/elm/parser/blob/master/semantics.md)
+to learn how `oneOf`, `backtrackable`, and `commit` work and interact with
+each other. It is subtle and important!
 -}
 commit : a -> Parser a
 commit =
