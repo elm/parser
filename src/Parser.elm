@@ -102,7 +102,7 @@ run parser source =
       Err (List.map problemToDeadEnd problems)
 
 
-problemToDeadEnd : A.Problem Never Problem -> DeadEnd
+problemToDeadEnd : A.DeadEnd Never Problem -> DeadEnd
 problemToDeadEnd p =
   DeadEnd p.row p.col p.problem
 
