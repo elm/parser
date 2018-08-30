@@ -989,8 +989,7 @@ can be useful in combination with [`withIndent`](#withIndent) and
         problem "expecting more spaces"
 
 So the `checkIndent` parser only succeeds when you are "deeper" than the
-current indent level. You could use this to parse Elm-style `let` expressions
-like in [this example](TODO/examples/Let.elm).
+current indent level. You could use this to parse Elm-style `let` expressions.
 -}
 getCol : Parser Int
 getCol =
