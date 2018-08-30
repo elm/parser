@@ -582,8 +582,6 @@ int =
     run float "6.022E23"  == Ok 6.022e23
     run float "6.022e+23" == Ok 6.022e23
 
-TODO what about trailing stuff?
-
 If you want to disable literals like `.123` (like in Elm) you could write
 something like this:
 
@@ -643,6 +641,12 @@ Notice that it actually is processing `int` results! This is because `123`
 looks like an integer to me, but maybe it looks like a float to you. If you had
 `int = Nothing`, floats would need a decimal like `1.0` in every case. If you
 like explicitness, that may actually be preferable!
+
+**Note:** This function does not check for weird trailing characters in the
+current implementation, so parsing `123abc` can succeed up to `123` and then
+move on. This is helpful for people who want to parse things like `40px` or
+`3m`, but it requires a bit of extra code to rule out trailing characters in
+other cases.
 -}
 number
   : { int : Maybe (Int -> a)
