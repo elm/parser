@@ -878,9 +878,6 @@ chompUntilEndOr =
 {-| Some languages are indentation sensitive. Python cares about tabs. Elm
 cares about spaces sometimes. `withIndent` and `getIndent` allow you to manage
 "indentation state" yourself, however is necessary in your scenario.
-
-Check out [`examples/Elm.elm`](TODO) for an example that uses this in a more
-realistic way.
 -}
 withIndent : Int -> Parser a -> Parser a
 withIndent =
@@ -900,9 +897,6 @@ out of `withIndent`, so say we have:
       |= getIndent
 
 Assuming there are no `withIndent` above this, you would get `(4,0)` from this.
-
-Check out [`examples/Elm.elm`](TODO) for an example that uses this in a more
-realistic way.
 -}
 getIndent : Parser Int
 getIndent =
