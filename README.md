@@ -83,8 +83,4 @@ Once you get comfortable with the `Parser` module, you can switch over to `Parse
 This technique is used by the parser in the Elm compiler to give more helpful error messages.
 
 
-<br>
-
-<br>
-
 ## [Comparison with Prior Work](https://github.com/elm/parser/blob/master/comparison.md)
