@@ -1204,7 +1204,7 @@ JS whitespace, you could say:
       succeed identity
         |. parser
         |= getOffset
-        |> andThen (\newOffset -> if offset == newOffset then Done () else Loop newOffset)
+        |> map (\newOffset -> if offset == newOffset then Done () else Loop newOffset)
 
 **Note:** The fact that `spaces` comes last in the definition of `elm` is very
 important! It can succeed without consuming any characters, so if it were the
