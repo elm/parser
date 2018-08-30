@@ -1,9 +1,26 @@
+import Browser
+import Char
+import Html
+import Parser exposing (..)
+
+
+
+-- MAIN
+
+
+main =
+  Html.text <| Debug.toString <|
+    run string "\"hello\""
+
+
+
+-- STRINGS
 
 
 string : Parser String
 string =
   succeed identity
-  	|. token "\""
+    |. token "\""
     |= loop [] stringHelp
 
 
@@ -22,7 +39,7 @@ stringHelp revChunks =
                 |. token "}"
             ]
     , token "\""
-        map (\_ -> Done (String.join "" (List.reverse revChunks)))
+        |> map (\_ -> Done (String.join "" (List.reverse revChunks)))
     , chompWhile isUninteresting
         |> getChompedString
         |> map (\chunk -> Loop (chunk :: revChunks))
@@ -34,9 +51,13 @@ isUninteresting char =
   char /= '\\' && char /= '"'
 
 
+
+-- UNICODE
+
+
 unicode : Parser Char
 unicode =
-  getChompedString (chompWhile Char.isHex)
+  getChompedString (chompWhile Char.isHexDigit)
     |> andThen codeToChar
 
 
@@ -57,7 +78,7 @@ codeToChar str =
 addHex : Char -> Int -> Int
 addHex char total =
   let
-    code = Char.toCode
+    code = Char.toCode char
   in
   if 0x30 <= code && code <= 0x39 then
     16 * total + (code - 0x30)

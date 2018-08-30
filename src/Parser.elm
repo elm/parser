@@ -314,7 +314,7 @@ say:
 First we chomp digits `andThen` we check if it is a valid U.S. zip code. We
 `succeed` if it has exactly five digits and report a `problem` if not.
 
-Check out [`examples/String.elm`](https://github.com/elm/parser/blob/master/examples/String.elm)
+Check out [`examples/DoubleQuoteString.elm`](https://github.com/elm/parser/blob/master/examples/DoubleQuoteString.elm)
 for another example, this time using `andThen` to verify unicode code points.
 
 **Note:** If you are using `andThen` recursively and blowing the stack, check
@@ -489,7 +489,7 @@ repeated structures, like a bunch of statements:
 Notice that the statements are tracked in reverse as we `Loop`, and we reorder
 them only once we are `Done`. This is a very common pattern with `loop`!
 
-Check out [`examples/String.elm`](https://github.com/elm/parser/blob/master/examples/String.elm)
+Check out [`examples/DoubleQuoteString.elm`](https://github.com/elm/parser/blob/master/examples/DoubleQuoteString.elm)
 for another example.
 
 **IMPORTANT NOTE:** Parsers like `succeed ()` and `chompWhile Char.isAlpha` can

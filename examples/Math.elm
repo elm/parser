@@ -5,6 +5,26 @@ module Math exposing
   )
 
 
+import Html exposing (div, p, text)
+import Parser exposing (..)
+
+
+
+-- MAIN
+
+
+main =
+  case parse "2 * (3 + 4)" of
+    Err err ->
+      text (Debug.toString err)
+
+    Ok expr ->
+      div []
+        [ p [] [ text (Debug.toString expr) ]
+        , p [] [ text (String.fromFloat (evaluate expr)) ]
+        ]
+
+
 
 -- EXPRESSIONS
 
@@ -32,7 +52,7 @@ evaluate expr =
       evaluate a * evaluate b
 
 
-parse : String -> Result Error Expr
+parse : String -> Result (List DeadEnd) Expr
 parse string =
   run expression string
 
@@ -67,7 +87,6 @@ digits =
     , octal = Nothing
     , binary = Nothing
     , float = Just Floating
-    , sign = Negate
     }
 
 
