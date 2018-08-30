@@ -63,21 +63,6 @@ parse string =
 
 {-| We want to handle integers, hexadecimal numbers, and floats. Octal numbers
 like `0o17` and binary numbers like `0b01101100` are not allowed.
-
-    run digits "1234"      == Ok (Integer 1234)
-    run digits "-123"      == Ok (Integer -123)
-    run digits "0x1b"      == Ok (Integer 27)
-    run digits "3.1415"    == Ok (Floating 3.1415)
-    run digits "0.1234"    == Ok (Floating 0.1234)
-    run digits ".1234"     == Ok (Floating 0.1234)
-    run digits "1e-42"     == Ok (Floating 1e-42)
-    run digits "6.022e23"  == Ok (Floating 6.022e23)
-    run digits "6.022E23"  == Ok (Floating 6.022e23)
-    run digits "6.022e+23" == Ok (Floating 6.022e23)
-    run digits "6.022e"    == Err ..
-    run digits "6.022n"    == Err ..
-    run digits "6.022.31"  == Err ..
-
 -}
 digits : Parser Expr
 digits =
@@ -90,6 +75,9 @@ digits =
     }
 
 
+{-| A term is a standalone chunk of math, like `4` or `(3 + 4)`. We use it as
+a building block in larger expressions.
+-}
 term : Parser Expr
 term =
   oneOf
@@ -103,15 +91,22 @@ term =
     ]
 
 
+{-| Every expression starts with a term. After that, it may be done, or there
+may be a `+` or `*` sign and more math.
+-}
 expression : Parser Expr
 expression =
   term
     |> andThen (expressionHelp [])
 
 
-{-| If you want to parse operators with different precedence (like `+` and `*`)
-a good strategy is to go through and create a list of all the operators. From
-there, you can write separate code to sort out the grouping.
+{-| Once you have parsed a term, you can start looking for `+` and `* operators.
+I am tracking everything as a list, that way I can be sure to follow the order
+of operations (PEMDAS) when building the final expression.
+
+In one case, I need an operator and another term. If that happens I keep
+looking for more. In the other case, I am done parsing, and I finalize the
+expression.
 -}
 expressionHelp : List (Expr, Operator) -> Expr -> Parser Expr
 expressionHelp revOps expr =
