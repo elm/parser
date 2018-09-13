@@ -9,6 +9,7 @@ module Parser exposing
   , DeadEnd, Problem(..), deadEndsToString
   , withIndent, getIndent
   , getPosition, getRow, getCol, getOffset, getSource
+  , endTests
   )
 
 
@@ -42,7 +43,7 @@ module Parser exposing
 @docs withIndent, getIndent
 
 # Positions
-@docs getPosition, getRow, getCol, getOffset, getSource
+@docs getPosition, getRow, getCol, getOffset, getSource, endTests
 -}
 
 
@@ -168,7 +169,7 @@ _thinks_ is happening can be really helpful!
 -}
 deadEndsToString : List DeadEnd -> String
 deadEndsToString deadEnds =
-  String.concat (List.intersperse "\n" (List.map deadEndToString deadEnds))
+  String.concat (List.intersperse "; " (List.map deadEndToString deadEnds))
 
 deadEndToString : DeadEnd -> String
 deadEndToString deadend = 
@@ -178,21 +179,38 @@ deadEndToString deadend =
 problemToString : Problem -> String 
 problemToString p = 
   case p of 
-   Expecting s -> "Expecting " ++ s
-   ExpectingInt -> "ExpectingInt" 
-   ExpectingHex -> "ExpectingOctal" 
-   ExpectingOctal -> "ExpectingOctal" 
-   ExpectingBinary -> "ExpectingBinary" 
-   ExpectingFloat -> "ExpectingNumber" 
-   ExpectingNumber -> "ExpectingVariable" 
-   ExpectingVariable -> "ExpectingVariable" 
-   ExpectingSymbol s -> "ExpectingSymbol " ++ s 
-   ExpectingKeyword s -> "ExpectingKeyword " ++ s 
-   ExpectingEnd -> "ExpectingEnd" 
-   UnexpectedChar -> "UnexpectedChar" 
-   Problem s -> "Problem " ++ s 
-   BadRepeat -> "BadRepeat" 
+   Expecting s -> "expecting '" ++ s ++ "'"
+   ExpectingInt -> "expecting int" 
+   ExpectingHex -> "expecting octal" 
+   ExpectingOctal -> "expecting octal" 
+   ExpectingBinary -> "expecting binary" 
+   ExpectingFloat -> "expecting number" 
+   ExpectingNumber -> "expecting variable" 
+   ExpectingVariable -> "expecting variable" 
+   ExpectingSymbol s -> "expecting symbol '" ++ s ++ "'"
+   ExpectingKeyword s -> "expecting keyword '" ++ s ++ "'"
+   ExpectingEnd -> "expecting end" 
+   UnexpectedChar -> "unexpected char" 
+   Problem s -> "problem " ++ s 
+   BadRepeat -> "bad repeat" 
 
+
+endTests =
+  List.map (\p -> { row = 0, col = 0, problem = p })
+  [ Expecting "blah"
+  , ExpectingInt 
+  , ExpectingHex 
+  , ExpectingOctal 
+  , ExpectingBinary 
+  , ExpectingFloat 
+  , ExpectingNumber 
+  , ExpectingVariable 
+  , ExpectingSymbol "symbol"
+  , ExpectingKeyword "keyword" 
+  , ExpectingEnd 
+  , UnexpectedChar 
+  , Problem "problem"
+  , BadRepeat ]
 
 
 -- PIPELINES
