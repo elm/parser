@@ -168,7 +168,30 @@ _thinks_ is happening can be really helpful!
 -}
 deadEndsToString : List DeadEnd -> String
 deadEndsToString deadEnds =
-  "TODO deadEndsToString"
+  String.concat (List.intersperse "\n" (List.map deadEndToString deadEnds))
+
+deadEndToString : DeadEnd -> String
+deadEndToString deadend = 
+  problemToString deadend.problem ++ " at row " ++ String.fromInt deadend.row ++ ", col " ++ String.fromInt deadend.col
+
+
+problemToString : Problem -> String 
+problemToString p = 
+  case p of 
+   Expecting s -> "Expecting " ++ s
+   ExpectingInt -> "ExpectingInt" 
+   ExpectingHex -> "ExpectingOctal" 
+   ExpectingOctal -> "ExpectingOctal" 
+   ExpectingBinary -> "ExpectingBinary" 
+   ExpectingFloat -> "ExpectingNumber" 
+   ExpectingNumber -> "ExpectingVariable" 
+   ExpectingVariable -> "ExpectingVariable" 
+   ExpectingSymbol s -> "ExpectingSymbol " ++ s 
+   ExpectingKeyword s -> "ExpectingKeyword " ++ s 
+   ExpectingEnd -> "ExpectingEnd" 
+   UnexpectedChar -> "UnexpectedChar" 
+   Problem s -> "Problem " ++ s 
+   BadRepeat -> "BadRepeat" 
 
 
 
