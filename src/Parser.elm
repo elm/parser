@@ -9,7 +9,6 @@ module Parser exposing
   , DeadEnd, Problem(..), deadEndsToString
   , withIndent, getIndent
   , getPosition, getRow, getCol, getOffset, getSource
-  , endTests
   )
 
 
@@ -43,7 +42,7 @@ module Parser exposing
 @docs withIndent, getIndent
 
 # Positions
-@docs getPosition, getRow, getCol, getOffset, getSource, endTests
+@docs getPosition, getRow, getCol, getOffset, getSource
 -}
 
 
@@ -193,24 +192,6 @@ problemToString p =
    UnexpectedChar -> "unexpected char" 
    Problem s -> "problem " ++ s 
    BadRepeat -> "bad repeat" 
-
-
-endTests =
-  List.map (\p -> { row = 0, col = 0, problem = p })
-  [ Expecting "blah"
-  , ExpectingInt 
-  , ExpectingHex 
-  , ExpectingOctal 
-  , ExpectingBinary 
-  , ExpectingFloat 
-  , ExpectingNumber 
-  , ExpectingVariable 
-  , ExpectingSymbol "symbol"
-  , ExpectingKeyword "keyword" 
-  , ExpectingEnd 
-  , UnexpectedChar 
-  , Problem "problem"
-  , BadRepeat ]
 
 
 -- PIPELINES
