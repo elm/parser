@@ -801,7 +801,7 @@ mapChompedString =
 
 
 
-{-| Chomp one character if it passes the test.
+{-| Chomp one character if it passes the test. Dead end if it does not pass the test.
 
     chompUpper : Parser ()
     chompUpper =
