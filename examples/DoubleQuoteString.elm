@@ -9,9 +9,25 @@ import Parser exposing (..)
 
 
 main =
-  Html.text <| Debug.toString <|
-    run string "\"hello\""
+  let
+    input =
+      "\"Hell\\u{006f}! What's up?\\r\\nThis >\\t< is a tab, that's what.\\r\\n\\u{1f600}\""
 
+    result =
+      run string input
+
+    display text =
+      [ Html.dt [] [ Html.text "Rendered:" ]
+      , Html.dd [] [ Html.pre [] [ Html.text text ] ]
+      ]
+  in
+  Html.dl [] <|
+    [ Html.dt [] [ Html.text "Input:" ]
+    , Html.dd [] [ Html.pre [] [ Html.text input ] ]
+    , Html.dt [] [ Html.text "Parse result:" ]
+    , Html.dd [] [ Html.pre [] [ Html.text <| Debug.toString result ] ]
+    ]
+      ++ (Result.map display result |> Result.withDefault [])
 
 
 -- STRINGS
@@ -67,7 +83,7 @@ codeToChar str =
     length = String.length str
     code = String.foldl addHex 0 str
   in
-  if 4 <= length && length <= 6 then
+  if length < 4 || length > 6 then
     problem "code point must have between 4 and 6 digits"
   else if 0 <= code && code <= 0x10FFFF then
     succeed (Char.fromCode code)
