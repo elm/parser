@@ -154,6 +154,9 @@ type Problem
   | BadRepeat
 
 
+
+
+
 {-| Turn all the `DeadEnd` data into a string that is easier for people to
 read.
 
@@ -168,7 +171,67 @@ _thinks_ is happening can be really helpful!
 -}
 deadEndsToString : List DeadEnd -> String
 deadEndsToString deadEnds =
-  "TODO deadEndsToString"
+  String.join "\n" (List.map deadEndToString deadEnds)
+
+
+deadEndToString : DeadEnd -> String
+deadEndToString deadEnd =
+  problemToString deadEnd.problem
+    ++ " at "
+    ++ deadEndToRowColString deadEnd
+
+problemToString : Problem -> String
+problemToString prob =
+  case prob of
+    Expecting s ->
+      "Expecting " ++ s
+
+    ExpectingInt ->
+      "Expecting Int"
+
+    ExpectingHex ->
+      "Expecting Hex"
+
+    ExpectingOctal ->
+      "Expecting Octal"
+
+    ExpectingBinary ->
+      "Expecting Binary"
+
+    ExpectingFloat ->
+      "Expecting Float"
+
+    ExpectingNumber ->
+      "Expecting Number"
+
+    ExpectingVariable ->
+      "Expecting Variable"
+
+    ExpectingSymbol s ->
+      "Expecting Symbol " ++ s
+
+    ExpectingKeyword s ->
+      "Expecting Keyword " ++ s
+
+    ExpectingEnd ->
+      "Expecting End"
+
+    UnexpectedChar ->
+      "Unexpected Char"
+
+    Problem s ->
+      "Problem: " ++ s
+
+    BadRepeat ->
+      "Bad Repeat"
+
+
+
+
+deadEndToRowColString : DeadEnd -> String
+deadEndToRowColString deadEnd =
+  "row " ++ String.fromInt deadEnd.row ++ ", " ++ "col " ++ String.fromInt deadEnd.col
+
 
 
 
@@ -1256,3 +1319,5 @@ toAdvancedNestable nestable =
   case nestable of
     NotNestable -> A.NotNestable
     Nestable -> A.Nestable
+
+
