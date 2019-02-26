@@ -285,7 +285,7 @@ That means we will want to define our parser in terms of itself:
         ]
 
 **Notice that `boolean` uses `boolean` in its definition!** In Elm, you can
-only define a value in terms of itself it is behind a function call. So
+only define a value in terms of itself if it is behind a function call. So
 `lazy` helps us define these self-referential parsers. (`andThen` can be used
 for this as well!)
 -}
