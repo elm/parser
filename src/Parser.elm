@@ -422,7 +422,7 @@ commit =
 A potential pitfall when parsing keywords is getting tricked by variables that
 start with a keyword, like `let` in `letters` or `import` in `important`. This
 is especially likely if you have a whitespace parser that can consume zero
-charcters. So the [`keyword`](#keyword) parser is defined with `token` and a
+characters. So the [`keyword`](#keyword) parser is defined with `token` and a
 trick to peek ahead a bit:
 
     keyword : String -> Parser ()
