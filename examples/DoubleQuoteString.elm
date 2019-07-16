@@ -67,7 +67,7 @@ codeToChar str =
     length = String.length str
     code = String.foldl addHex 0 str
   in
-  if 4 <= length && length <= 6 then
+  if length < 4 || length > 6 then
     problem "code point must have between 4 and 6 digits"
   else if 0 <= code && code <= 0x10FFFF then
     succeed (Char.fromCode code)
