@@ -1125,7 +1125,7 @@ isAsciiCode =
     findSubString "42" offset row col "Is 42 the answer?"
         --==> (newOffset, newRow, newCol)
 
-If `offset = 0` we would get `(3, 1, 4)`
+If `offset = 0` we would get `(3, 1, 6)`
 If `offset = 7` we would get `(-1, 1, 18)`
 -}
 findSubString : String -> Int -> Int -> Int -> String -> (Int, Int, Int)
