@@ -893,9 +893,9 @@ chompUntil (Token str expecting) =
       Bad False (fromInfo newRow newCol expecting s.context)
 
     else
-      Good (s.offset < newOffset) ()
+      Good (s.offset < newOffset + String.length str) ()
         { src = s.src
-        , offset = newOffset
+        , offset = newOffset + String.length str
         , indent = s.indent
         , context = s.context
         , row = newRow
@@ -913,7 +913,7 @@ chompUntilEndOr str =
         Elm.Kernel.Parser.findSubString str s.offset s.row s.col s.src
 
       adjustedOffset =
-        if newOffset < 0 then String.length s.src else newOffset
+        if newOffset < 0 then String.length s.src else newOffset + String.length str
     in
     Good (s.offset < adjustedOffset) ()
       { src = s.src
