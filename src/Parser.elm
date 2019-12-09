@@ -158,7 +158,7 @@ type Problem
 read.
 
 **Note:** This is just a baseline of quality. It cannot do anything with colors.
-It is not interactivite. It just turns the raw data into strings. I really hope
+It is not interactive. It just turns the raw data into strings. I really hope
 folks will check out the source code for some inspiration on how to turn errors
 into `Html` with nice colors and interaction! The `Parser.Advanced` module lets
 you work with context as well, which really unlocks another level of quality!

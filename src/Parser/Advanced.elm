@@ -62,7 +62,7 @@ infix left 5 (|=) = keeper
 infix left 6 (|.) = ignorer
 
 
-{- NOTE: the (|.) oporator binds tighter to slightly reduce the amount
+{- NOTE: the (|.) operator binds tighter to slightly reduce the amount
 of recursion in pipelines. For example:
 
     func
