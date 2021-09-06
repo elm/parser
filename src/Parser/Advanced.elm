@@ -1328,7 +1328,7 @@ multiComment open close nestable =
       nestableComment open close
 
 
-{-| Works just like [`Parser.Nestable`](Parser#nestable) to help distinguish
+{-| Works just like [`Parser.Nestable`](Parser#Nestable) to help distinguish
 between unnestable `/*` `*/` comments like in JS and nestable `{-` `-}`
 comments like in Elm.
 -}
