@@ -119,8 +119,8 @@ var _Parser_consumeBase16 = F2(function(offset, string)
 
 var _Parser_findSubString = F5(function(smallString, offset, row, col, bigString)
 {
-	var newOffset = bigString.indexOf(smallString, offset);
-	var target = newOffset < 0 ? bigString.length : newOffset + smallString.length;
+	var index = bigString.indexOf(smallString, offset);
+	var target = index < 0 ? bigString.length : index + smallString.length;
 
 	while (offset < target)
 	{
@@ -130,5 +130,5 @@ var _Parser_findSubString = F5(function(smallString, offset, row, col, bigString
 			: ( col++, (code & 0xF800) === 0xD800 && offset++ )
 	}
 
-	return __Utils_Tuple3(newOffset, row, col);
+	return __Utils_Tuple3(index < 0 ? -1 : target, row, col);
 });
