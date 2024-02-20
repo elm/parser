@@ -1212,7 +1212,7 @@ JS whitespace, you could say:
 important! It can succeed without consuming any characters, so if it were the
 first option, it would always succeed and bypass the others! (Same is true of
 `chompWhile` in `js`.) This possibility of success without consumption is also
-why wee need the `ifProgress` helper. It detects if there is no more whitespace
+why we need the `ifProgress` helper. It detects if there is no more whitespace
 to consume.
 -}
 multiComment : String -> String -> Nestable -> Parser ()
